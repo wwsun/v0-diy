@@ -144,7 +144,7 @@ export default function NewChatLauncher() {
 
           <form
             className="space-y-2"
-            onSubmit={event => {
+            onSubmit={(event) => {
               event.preventDefault();
               void submit();
             }}
@@ -174,13 +174,15 @@ export default function NewChatLauncher() {
                     <span>App Type</span>
                     <select
                       value={appType}
-                      onChange={event =>
+                      onChange={(event) =>
                         setAppType(event.target.value as AppType)
                       }
                       disabled={isSubmitting}
                       className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
                     >
-                      <option value="marketing-campaign">Marketing Campaign</option>
+                      <option value="marketing-campaign">
+                        Marketing Campaign
+                      </option>
                       <option value="report-app">Report App</option>
                     </select>
                   </label>
@@ -190,8 +192,8 @@ export default function NewChatLauncher() {
                     <input
                       value={brief.style}
                       disabled={isSubmitting}
-                      onChange={event =>
-                        setBrief(previous => ({
+                      onChange={(event) =>
+                        setBrief((previous) => ({
                           ...previous,
                           style: event.target.value,
                         }))
@@ -205,8 +207,8 @@ export default function NewChatLauncher() {
                     <input
                       value={brief.industry}
                       disabled={isSubmitting}
-                      onChange={event =>
-                        setBrief(previous => ({
+                      onChange={(event) =>
+                        setBrief((previous) => ({
                           ...previous,
                           industry: event.target.value,
                         }))
@@ -220,8 +222,8 @@ export default function NewChatLauncher() {
                     <input
                       value={brief.objective}
                       disabled={isSubmitting}
-                      onChange={event =>
-                        setBrief(previous => ({
+                      onChange={(event) =>
+                        setBrief((previous) => ({
                           ...previous,
                           objective: event.target.value,
                         }))
@@ -235,8 +237,8 @@ export default function NewChatLauncher() {
                     <input
                       value={brief.primaryColor}
                       disabled={isSubmitting}
-                      onChange={event =>
-                        setBrief(previous => ({
+                      onChange={(event) =>
+                        setBrief((previous) => ({
                           ...previous,
                           primaryColor: event.target.value,
                         }))
@@ -255,8 +257,8 @@ export default function NewChatLauncher() {
               disabled={isSubmitting}
               placeholder="Message AI Chat..."
               className="max-h-[140px] min-h-[56px] w-full resize-none rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-1 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100"
-              onChange={event => setText(event.target.value)}
-              onKeyDown={event => {
+              onChange={(event) => setText(event.target.value)}
+              onKeyDown={(event) => {
                 if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
                   event.preventDefault();
                   void submit();

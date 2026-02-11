@@ -1,6 +1,6 @@
 import { generateId } from 'ai';
 import { existsSync, mkdirSync } from 'fs';
-import { readdir, readFile, writeFile } from 'fs/promises';
+import { readdir, readFile, unlink, writeFile } from 'fs/promises';
 import path from 'path';
 import { ChatData, MyUIMessage } from './chat-schema';
 
@@ -10,7 +10,7 @@ import { ChatData, MyUIMessage } from './chat-schema';
 
 export async function createChat(): Promise<string> {
   const id = generateId();
-  getChatFile(id);
+  await writeChat(createBlankChat(id));
   return id;
 }
 
@@ -24,8 +24,12 @@ export async function saveChat({
   activeStreamId?: string | null;
   messages?: MyUIMessage[];
   canceledAt?: number | null;
-}): Promise<void> {
-  const chat = await readChat(id);
+}): Promise<boolean> {
+  const chat = await readChatIfExists(id);
+
+  if (!chat) {
+    return false;
+  }
 
   if (messages !== undefined) {
     chat.messages = messages;
@@ -40,6 +44,7 @@ export async function saveChat({
   }
 
   await writeChat(chat);
+  return true;
 }
 
 export async function appendMessageToChat({
@@ -49,47 +54,84 @@ export async function appendMessageToChat({
   id: string;
   message: MyUIMessage;
 }): Promise<void> {
-  const chat = await readChat(id);
+  const chat = (await readChatIfExists(id)) ?? createBlankChat(id);
   chat.messages.push(message);
   await writeChat(chat);
 }
 
 async function writeChat(chat: ChatData) {
-  await writeFile(await getChatFile(chat.id), JSON.stringify(chat, null, 2));
+  await ensureChatDir();
+  await writeFile(getChatFilePath(chat.id), JSON.stringify(chat, null, 2));
 }
 
-// TODO return null if the chat does not exist
 export async function readChat(id: string): Promise<ChatData> {
-  return JSON.parse(await readFile(await getChatFile(id), 'utf8'));
+  const existingChat = await readChatIfExists(id);
+  if (existingChat) {
+    return existingChat;
+  }
+
+  const blankChat = createBlankChat(id);
+  await writeChat(blankChat);
+  return blankChat;
+}
+
+export async function readChatIfExists(id: string): Promise<ChatData | null> {
+  const chatFile = getChatFilePath(id);
+
+  if (!existsSync(chatFile)) {
+    return null;
+  }
+
+  return JSON.parse(await readFile(chatFile, 'utf8'));
 }
 
 export async function readAllChats(): Promise<ChatData[]> {
-  const chatDir = path.join(process.cwd(), '.chats');
-  const files = await readdir(chatDir, { withFileTypes: true });
-  return Promise.all(
-    files
-      .filter(file => file.isFile())
-      .map(async file => readChat(file.name.replace('.json', ''))),
-  );
-}
+  const chatDir = getChatDir();
 
-async function getChatFile(id: string): Promise<string> {
-  const chatDir = path.join(process.cwd(), '.chats');
-
-  if (!existsSync(chatDir)) mkdirSync(chatDir, { recursive: true });
-
-  const chatFile = path.join(chatDir, `${id}.json`);
-
-  if (!existsSync(chatFile)) {
-    const blankChat: ChatData = {
-      id,
-      messages: [],
-      createdAt: Date.now(),
-      activeStreamId: null,
-      canceledAt: null,
-    };
-    await writeFile(chatFile, JSON.stringify(blankChat, null, 2));
+  if (!existsSync(chatDir)) {
+    return [];
   }
 
-  return chatFile;
+  const files = await readdir(chatDir, { withFileTypes: true });
+  const chats = await Promise.all(
+    files
+      .filter(file => file.isFile() && file.name.endsWith('.json'))
+      .map(async file => readChatIfExists(file.name.replace('.json', ''))),
+  );
+
+  return chats.filter((chat): chat is ChatData => chat !== null);
+}
+
+export async function deleteChat(id: string): Promise<boolean> {
+  const chatFile = getChatFilePath(id);
+
+  if (!existsSync(chatFile)) {
+    return false;
+  }
+
+  await unlink(chatFile);
+  return true;
+}
+
+function getChatDir(): string {
+  return path.join(process.cwd(), '.chats');
+}
+
+async function ensureChatDir(): Promise<void> {
+  const chatDir = getChatDir();
+  if (!existsSync(chatDir)) mkdirSync(chatDir, { recursive: true });
+}
+
+function getChatFilePath(id: string): string {
+  return path.join(getChatDir(), `${id}.json`);
+}
+
+function createBlankChat(id: string): ChatData {
+  return {
+    id,
+    messages: [],
+    createdAt: Date.now(),
+    activeStreamId: null,
+    canceledAt: null,
+  };
 }

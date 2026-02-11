@@ -44,7 +44,14 @@ export default function Message({
             )}
             {isUser ? 'You' : 'Assistant'}
           </span>
-          {date ? ` · ${date}` : ''}
+          {date ? (
+            <>
+              {' · '}
+              <time suppressHydrationWarning>{date}</time>
+            </>
+          ) : (
+            ''
+          )}
         </div>
         <div className="whitespace-pre-wrap break-words leading-6">
           {message.parts

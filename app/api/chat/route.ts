@@ -1,5 +1,5 @@
 import type { MyUIMessage } from '@/util/chat-schema';
-import { readChat, saveChat } from '@util/chat-store';
+import { readChat, readChatIfExists, saveChat } from '@util/chat-store';
 import {
   convertToModelMessages,
   generateId,
@@ -79,7 +79,14 @@ export async function POST(req: Request) {
     abortSignal: userStopSignal.signal,
     // throttle reading from chat store to max once per second
     onChunk: throttle(async ({ chunk }) => {
-      const { canceledAt } = await readChat(id);
+      const chatState = await readChatIfExists(id);
+
+      if (!chatState) {
+        userStopSignal.abort();
+        return;
+      }
+
+      const { canceledAt } = chatState;
       if (canceledAt) {
         userStopSignal.abort();
         return;

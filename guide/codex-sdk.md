@@ -4,6 +4,10 @@ Embed the Codex agent in your workflows and apps.
 
 The TypeScript SDK wraps the bundled `codex` binary. It spawns the CLI and exchanges JSONL events over stdin/stdout.
 
+## Codex Agent Loop
+
+To see more detail of codex-sdk agent loop and response data at @https://openai.com/index/unrolling-the-codex-agent-loop/
+
 ## Installation
 
 ```bash

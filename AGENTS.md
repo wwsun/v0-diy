@@ -17,6 +17,8 @@ Agent-focused instructions for this repository. Keep this file updated as code p
 Note: `npm run lint` currently uses `next lint` and may prompt interactively if ESLint config is missing.
 
 ## Project structure
+- `guide/codex-sdk.md`: local reference for Codex SDK usage patterns and constraints.
+- `guide/ai-sdk.md`: local reference for Vercel AI SDK Agent patterns (`ToolLoopAgent`, UI streaming, typing).
 - `app/page.tsx`: home shell (sidebar + new chat launcher).
 - `app/chat/sidebar.tsx`: shared sidebar for home and chat pages.
 - `app/chat/chat-list-item.tsx`: sidebar chat row item with navigation/delete actions.
@@ -41,6 +43,23 @@ Note: `npm run lint` currently uses `next lint` and may prompt interactively if 
 - `util/agent-adapters/*.ts`: adapter implementations for each agent SDK.
 - `util/ai/provider.ts`: model provider factory.
 - `util/ai/agent.ts`: core AI agent helpers.
+
+## SDK-specific guidance
+
+### Codex SDK (`guide/codex-sdk.md`)
+- Prefer streamed execution (`thread.runStreamed(...)`) in adapters so progress/events can be surfaced to UI.
+- Persist and reuse Codex thread identity via `chat.agentRuntimeState.codexThreadId` (`thread.started` -> save thread id).
+- Keep Codex runtime restrictions explicit unless product requirements change: read-only sandbox, no network, no approvals.
+- Keep Codex integration concerns inside `util/agent-adapters/codex-adapter.ts`; route handlers should stay SDK-agnostic.
+- If adding structured Codex responses, use schema-based output (`outputSchema`) rather than post-hoc string parsing.
+
+### Vercel AI SDK (`guide/ai-sdk.md`)
+- Define reusable agent behavior in `util/ai/agent.ts` with `ToolLoopAgent` (model, instructions, tools, stop conditions).
+- Keep loop control explicit (`stopWhen`, e.g. `stepCountIs(...)`) to avoid unbounded tool loops.
+- Define tool schemas with `tool(...)` + `zod` for type-safe inputs/outputs.
+- In route/adapters, prefer `createAgentUIStreamResponse(...)` for chat UI streaming flows.
+- Maintain end-to-end message typing with `InferAgentUIMessage` on the server side and typed `useChat` usage on clients.
+- If adding telemetry/cost tracking, use `onStepFinish` hooks rather than ad-hoc logging in route handlers.
 
 ## Do
 - Keep diffs small and focused; preserve existing behavior unless asked.
@@ -67,6 +86,8 @@ Note: `npm run lint` currently uses `next lint` and may prompt interactively if 
 - For chat/data changes:
   - Stream still works via `/api/chat` and `/api/chat/[id]/stream`.
   - `PATCH /api/chat/[id]/agent-config` correctly updates `mode` and `agentSdk`.
+  - In `agent + codex` mode, consecutive turns reuse the same `codexThreadId` when available.
+  - In `agent + vercel-ai` mode, responses still stream through `createAgentUIStreamResponse`.
   - Deleting active chat redirects to `/`.
 
 ## PR / commit guidance

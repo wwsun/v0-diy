@@ -2,7 +2,7 @@ import { generateId } from 'ai';
 import { existsSync, mkdirSync } from 'fs';
 import { readdir, readFile, unlink, writeFile } from 'fs/promises';
 import path from 'path';
-import { ChatData, MyUIMessage } from './chat-schema';
+import { ChatData, ChatMode, MyUIMessage } from './chat-schema';
 
 // example implementation for demo purposes
 // in a real app, you would save the chat to a database
@@ -19,11 +19,13 @@ export async function saveChat({
   activeStreamId,
   messages,
   canceledAt,
+  mode,
 }: {
   id: string;
   activeStreamId?: string | null;
   messages?: MyUIMessage[];
   canceledAt?: number | null;
+  mode?: ChatMode;
 }): Promise<boolean> {
   const chat = await readChatIfExists(id);
 
@@ -41,6 +43,10 @@ export async function saveChat({
 
   if (canceledAt !== undefined) {
     chat.canceledAt = canceledAt;
+  }
+
+  if (mode !== undefined) {
+    chat.mode = mode;
   }
 
   await writeChat(chat);
@@ -82,7 +88,16 @@ export async function readChatIfExists(id: string): Promise<ChatData | null> {
     return null;
   }
 
-  return JSON.parse(await readFile(chatFile, 'utf8'));
+  const chat = JSON.parse(await readFile(chatFile, 'utf8')) as Partial<ChatData>;
+
+  return {
+    id: chat.id ?? id,
+    messages: chat.messages ?? [],
+    mode: chat.mode === 'agent' ? 'agent' : 'chat',
+    createdAt: chat.createdAt ?? Date.now(),
+    activeStreamId: chat.activeStreamId ?? null,
+    canceledAt: chat.canceledAt ?? null,
+  };
 }
 
 export async function readAllChats(): Promise<ChatData[]> {
@@ -130,6 +145,7 @@ function createBlankChat(id: string): ChatData {
   return {
     id,
     messages: [],
+    mode: 'chat',
     createdAt: Date.now(),
     activeStreamId: null,
     canceledAt: null,

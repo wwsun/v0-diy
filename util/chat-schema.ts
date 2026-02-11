@@ -9,9 +9,12 @@ export type MyMessageMetadata = z.infer<typeof myMessageMetadataSchema>;
 
 export type MyUIMessage = UIMessage<MyMessageMetadata, UIDataTypes>;
 
+export type ChatMode = 'chat' | 'agent';
+
 export type ChatData = {
   id: string;
   messages: MyUIMessage[];
+  mode: ChatMode;
   createdAt: number;
   activeStreamId: string | null;
   canceledAt: number | null;

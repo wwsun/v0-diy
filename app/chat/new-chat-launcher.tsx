@@ -1,16 +1,20 @@
 'use client';
 
+import type { ChatMode } from '@/util/chat-schema';
 import { generateId } from 'ai';
 import { MessageSquare, SendHorizonal } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import ModeToggle from './mode-toggle';
 
 export default function NewChatLauncher() {
   const router = useRouter();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState('');
+  const [mode, setMode] = useState<ChatMode>('chat');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [chatId] = useState(() => generateId());
+  const [firstMessageId] = useState(() => generateId());
   const canSubmit = !isSubmitting && text.trim().length > 0;
 
   useEffect(() => {
@@ -41,7 +45,9 @@ export default function NewChatLauncher() {
       body: JSON.stringify({
         trigger: 'submit-message',
         id: chatId,
+        mode,
         message: {
+          id: firstMessageId,
           role: 'user',
           parts: [{ type: 'text', text: userText }],
           metadata: { createdAt: Date.now() },
@@ -82,6 +88,15 @@ export default function NewChatLauncher() {
               void submit();
             }}
           >
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-500">Response mode</span>
+              <ModeToggle
+                value={mode}
+                onChange={setMode}
+                disabled={isSubmitting}
+              />
+            </div>
+
             <textarea
               ref={inputRef}
               rows={2}
@@ -114,4 +129,3 @@ export default function NewChatLauncher() {
     </div>
   );
 }
-

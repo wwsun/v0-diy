@@ -1,11 +1,11 @@
 'use client';
 
 import { invalidateRouterCache } from '@/app/actions';
-import type { MyUIMessage } from '@/util/chat-schema';
+import type { ChatMode, MyUIMessage } from '@/util/chat-schema';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { Bot, Loader2 } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ChatInput from './chat-input';
 import Message from './message';
 
@@ -14,14 +14,16 @@ export default function ChatComponent({
   isNewChat = false,
   resume = false,
 }: {
-  chatData: { id: string; messages: MyUIMessage[] };
+  chatData: { id: string; messages: MyUIMessage[]; mode: ChatMode };
   isNewChat?: boolean;
   resume?: boolean;
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [mode, setMode] = useState<ChatMode>(chatData.mode);
+  const [isUpdatingMode, setIsUpdatingMode] = useState(false);
 
-  const { status, sendMessage, messages, regenerate, stop } = useChat({
+  const { status, sendMessage, messages, regenerate } = useChat({
     id: chatData.id,
     messages: chatData.messages,
     resume,
@@ -35,6 +37,7 @@ export default function ChatComponent({
                 trigger: 'regenerate-message',
                 id,
                 messageId,
+                mode,
               },
             };
 
@@ -46,6 +49,7 @@ export default function ChatComponent({
                 id,
                 message: messages[messages.length - 1],
                 messageId,
+                mode,
               },
             };
         }
@@ -75,6 +79,40 @@ export default function ChatComponent({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, status]);
+
+  useEffect(() => {
+    setMode(chatData.mode);
+  }, [chatData.mode, chatData.id]);
+
+  const persistMode = async (nextMode: ChatMode) => {
+    if (nextMode === mode || status !== 'ready' || isUpdatingMode) {
+      return;
+    }
+
+    const previousMode = mode;
+    setMode(nextMode);
+    setIsUpdatingMode(true);
+
+    try {
+      const response = await fetch(`/api/chat/${chatData.id}/mode`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mode: nextMode }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update mode');
+      }
+    } catch (error) {
+      console.error(error);
+      setMode(previousMode);
+      window.alert('Failed to switch mode. Please try again.');
+    } finally {
+      setIsUpdatingMode(false);
+    }
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
@@ -129,6 +167,9 @@ export default function ChatComponent({
             }
           }}
           inputRef={inputRef}
+          mode={mode}
+          onModeChange={persistMode}
+          modeDisabled={isUpdatingMode}
         />
       </div>
     </div>

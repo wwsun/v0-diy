@@ -1,6 +1,9 @@
-import type { MyUIMessage } from '@/util/chat-schema';
+import { chatAgent, type ChatAgentUIMessage } from '@/util/ai/agent';
+import type { ChatMode, MyUIMessage } from '@/util/chat-schema';
+import { ensureMessageIds } from '@/util/chat-message';
 import { readChat, readChatIfExists, saveChat } from '@util/chat-store';
 import {
+  createAgentUIStreamResponse,
   convertToModelMessages,
   generateId,
   stepCountIs,
@@ -17,15 +20,22 @@ export async function POST(req: Request) {
     id,
     trigger,
     messageId,
+    mode,
   }: {
     message: MyUIMessage | undefined;
     id: string;
     trigger: 'submit-message' | 'regenerate-message';
     messageId: string | undefined;
+    mode?: ChatMode;
   } = await req.json();
+
+  if (mode !== undefined && mode !== 'chat' && mode !== 'agent') {
+    return Response.json({ ok: false, error: 'invalid_mode' }, { status: 400 });
+  }
 
   const chat = await readChat(id);
   let messages: MyUIMessage[] = chat.messages;
+  const effectiveMode = mode ?? chat.mode;
 
   if (trigger === 'submit-message') {
     if (messageId != null) {
@@ -59,12 +69,40 @@ export async function POST(req: Request) {
     );
   }
 
-  // save the user message
-  saveChat({ id, messages });
+  messages = ensureMessageIds(messages);
+
+  // save the user message and mode
+  saveChat({ id, messages, mode: effectiveMode });
+
+  if (effectiveMode === 'agent') {
+    const agentMessages = messages as unknown as ChatAgentUIMessage[];
+
+    return createAgentUIStreamResponse({
+      agent: chatAgent,
+      uiMessages: agentMessages,
+      originalMessages: agentMessages,
+      generateMessageId: () => generateId(),
+      messageMetadata: ({ part }) => {
+        if (part.type === 'start') {
+          return { createdAt: Date.now() };
+        }
+      },
+      onFinish: ({ messages: finalMessages }) => {
+        saveChat({
+          id,
+          messages: finalMessages as unknown as MyUIMessage[],
+          mode: effectiveMode,
+        });
+      },
+      onError: error => {
+        console.error(error);
+        return 'An error occurred.';
+      },
+    });
+  }
 
   const userStopSignal = new AbortController();
   let currentMessageId: string | null = null;
-  let accumulatedText = '';
 
   const result = streamText({
     model,
@@ -94,11 +132,11 @@ export async function POST(req: Request) {
 
       // Accumulate text and save incrementally
       if (chunk.type === 'text-delta') {
-        accumulatedText += chunk.textDelta;
         if (currentMessageId) {
           saveChat({
             id,
             messages,
+            mode: effectiveMode,
           });
         }
       }
@@ -121,7 +159,7 @@ export async function POST(req: Request) {
       }
     },
     onFinish: ({ messages }) => {
-      saveChat({ id, messages });
+      saveChat({ id, messages, mode: effectiveMode });
     },
   });
 }

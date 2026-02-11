@@ -1,16 +1,24 @@
+import type { ChatMode } from '@/util/chat-schema';
 import { useEffect, useState } from 'react';
 import { SendHorizonal, Square } from 'lucide-react';
+import ModeToggle from '../mode-toggle';
 
 export default function ChatInput({
   status,
   onSubmit,
   inputRef,
   stop,
+  mode,
+  onModeChange,
+  modeDisabled = false,
 }: {
   status: string;
   onSubmit: (text: string) => void;
   inputRef: React.RefObject<HTMLTextAreaElement>;
   stop: () => void;
+  mode: ChatMode;
+  onModeChange: (mode: ChatMode) => void;
+  modeDisabled?: boolean;
 }) {
   const [text, setText] = useState('');
   const canSubmit = status === 'ready' && text.trim().length > 0;
@@ -47,6 +55,15 @@ export default function ChatInput({
           Stop generating
         </button>
       )}
+
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-slate-500">Response mode</span>
+        <ModeToggle
+          value={mode}
+          onChange={onModeChange}
+          disabled={status !== 'ready' || modeDisabled}
+        />
+      </div>
 
       <div className="flex items-center gap-2">
         <textarea

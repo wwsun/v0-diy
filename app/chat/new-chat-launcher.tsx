@@ -1,17 +1,19 @@
 'use client';
 
-import type { ChatMode } from '@/util/chat-schema';
+import type { AgentSdk, ChatMode } from '@/util/chat-schema';
 import { generateId } from 'ai';
 import { MessageSquare, SendHorizonal } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import ModeToggle from './mode-toggle';
+import SdkToggle from './sdk-toggle';
 
 export default function NewChatLauncher() {
   const router = useRouter();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState('');
   const [mode, setMode] = useState<ChatMode>('chat');
+  const [agentSdk, setAgentSdk] = useState<AgentSdk>('vercel-ai');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [chatId] = useState(() => generateId());
   const [firstMessageId] = useState(() => generateId());
@@ -46,6 +48,7 @@ export default function NewChatLauncher() {
         trigger: 'submit-message',
         id: chatId,
         mode,
+        agentSdk,
         message: {
           id: firstMessageId,
           role: 'user',
@@ -96,6 +99,17 @@ export default function NewChatLauncher() {
                 disabled={isSubmitting}
               />
             </div>
+
+            {mode === 'agent' && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500">Agent SDK</span>
+                <SdkToggle
+                  value={agentSdk}
+                  onChange={setAgentSdk}
+                  disabled={isSubmitting}
+                />
+              </div>
+            )}
 
             <textarea
               ref={inputRef}

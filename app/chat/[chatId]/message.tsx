@@ -2,6 +2,52 @@ import type { MyUIMessage } from '@/util/chat-schema';
 import { ChatStatus } from 'ai';
 import { Bot, RefreshCcw, Sparkles, UserRound } from 'lucide-react';
 
+type MessageSegment = {
+  type: 'status' | 'body';
+  text: string;
+};
+
+function isStatusLine(line: string): boolean {
+  return /^\[(codex|reasoning|command(?::|\])|file_change(?::|\])|tool(?::|\])|web_search|todo|error)/i.test(
+    line.trim(),
+  );
+}
+
+function splitMessageSegments(text: string): MessageSegment[] {
+  const segments: MessageSegment[] = [];
+  const lines = text.split('\n');
+  const bodyBuffer: string[] = [];
+
+  const flushBody = () => {
+    if (bodyBuffer.length === 0) {
+      return;
+    }
+
+    segments.push({
+      type: 'body',
+      text: bodyBuffer.join('\n'),
+    });
+    bodyBuffer.length = 0;
+  };
+
+  for (const line of lines) {
+    if (isStatusLine(line)) {
+      flushBody();
+      segments.push({
+        type: 'status',
+        text: line.trim(),
+      });
+      continue;
+    }
+
+    bodyBuffer.push(line);
+  }
+
+  flushBody();
+
+  return segments;
+}
+
 export default function Message({
   message,
   status,
@@ -23,6 +69,10 @@ export default function Message({
     ? new Date(message.metadata.createdAt).toLocaleString()
     : '';
   const isUser = message.role === 'user';
+  const messageText = message.parts
+    .map(part => (part.type === 'text' ? part.text : ''))
+    .join('');
+  const segments = isUser ? [] : splitMessageSegments(messageText);
 
   return (
     <article className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -53,11 +103,31 @@ export default function Message({
             ''
           )}
         </div>
-        <div className="whitespace-pre-wrap break-words leading-6">
-          {message.parts
-            .map(part => (part.type === 'text' ? part.text : ''))
-            .join('')}
-        </div>
+        {isUser ? (
+          <div className="whitespace-pre-wrap break-words leading-6">
+            {messageText}
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {segments.map((segment, index) =>
+              segment.type === 'status' ? (
+                <div
+                  key={`segment-${index}`}
+                  className="rounded border border-slate-200 bg-slate-100 px-2 py-1 text-xs text-slate-600"
+                >
+                  {segment.text}
+                </div>
+              ) : (
+                <div
+                  key={`segment-${index}`}
+                  className="whitespace-pre-wrap break-words leading-6"
+                >
+                  {segment.text}
+                </div>
+              ),
+            )}
+          </div>
+        )}
 
         {message.role === 'user' && (
           <div className="mt-2 flex flex-wrap gap-1.5">

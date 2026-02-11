@@ -1,7 +1,7 @@
 'use client';
 
 import { invalidateRouterCache } from '@/app/actions';
-import type { ChatMode, MyUIMessage } from '@/util/chat-schema';
+import type { AgentSdk, ChatMode, MyUIMessage } from '@/util/chat-schema';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { Bot, Loader2 } from 'lucide-react';
@@ -14,13 +14,19 @@ export default function ChatComponent({
   isNewChat = false,
   resume = false,
 }: {
-  chatData: { id: string; messages: MyUIMessage[]; mode: ChatMode };
+  chatData: {
+    id: string;
+    messages: MyUIMessage[];
+    mode: ChatMode;
+    agentSdk: AgentSdk;
+  };
   isNewChat?: boolean;
   resume?: boolean;
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<ChatMode>(chatData.mode);
+  const [agentSdk, setAgentSdk] = useState<AgentSdk>(chatData.agentSdk);
   const [isUpdatingMode, setIsUpdatingMode] = useState(false);
 
   const { status, sendMessage, messages, regenerate } = useChat({
@@ -38,6 +44,7 @@ export default function ChatComponent({
                 id,
                 messageId,
                 mode,
+                agentSdk,
               },
             };
 
@@ -50,6 +57,7 @@ export default function ChatComponent({
                 message: messages[messages.length - 1],
                 messageId,
                 mode,
+                agentSdk,
               },
             };
         }
@@ -82,36 +90,70 @@ export default function ChatComponent({
 
   useEffect(() => {
     setMode(chatData.mode);
-  }, [chatData.mode, chatData.id]);
+    setAgentSdk(chatData.agentSdk);
+  }, [chatData.mode, chatData.agentSdk, chatData.id]);
 
-  const persistMode = async (nextMode: ChatMode) => {
-    if (nextMode === mode || status !== 'ready' || isUpdatingMode) {
+  const persistAgentConfig = async ({
+    nextMode,
+    nextAgentSdk,
+  }: {
+    nextMode?: ChatMode;
+    nextAgentSdk?: AgentSdk;
+  }) => {
+    const targetMode = nextMode ?? mode;
+    const targetAgentSdk = nextAgentSdk ?? agentSdk;
+
+    if (
+      (targetMode === mode && targetAgentSdk === agentSdk) ||
+      status !== 'ready' ||
+      isUpdatingMode
+    ) {
       return;
     }
 
     const previousMode = mode;
-    setMode(nextMode);
+    const previousAgentSdk = agentSdk;
+
+    if (nextMode !== undefined) {
+      setMode(nextMode);
+    }
+    if (nextAgentSdk !== undefined) {
+      setAgentSdk(nextAgentSdk);
+    }
+
     setIsUpdatingMode(true);
 
     try {
-      const response = await fetch(`/api/chat/${chatData.id}/mode`, {
+      const response = await fetch(`/api/chat/${chatData.id}/agent-config`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ mode: nextMode }),
+        body: JSON.stringify({
+          mode: targetMode,
+          agentSdk: targetAgentSdk,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update mode');
+        throw new Error('Failed to update agent config');
       }
     } catch (error) {
       console.error(error);
       setMode(previousMode);
-      window.alert('Failed to switch mode. Please try again.');
+      setAgentSdk(previousAgentSdk);
+      window.alert('Failed to switch agent settings. Please try again.');
     } finally {
       setIsUpdatingMode(false);
     }
+  };
+
+  const persistMode = async (nextMode: ChatMode) => {
+    await persistAgentConfig({ nextMode });
+  };
+
+  const persistSdk = async (nextAgentSdk: AgentSdk) => {
+    await persistAgentConfig({ nextAgentSdk });
   };
 
   return (
@@ -123,6 +165,9 @@ export default function ChatComponent({
             Conversation
           </h2>
           <p className="text-[11px] text-slate-500">Chat ID: {chatData.id}</p>
+          <p className="text-[11px] text-slate-500">
+            Mode: {mode === 'agent' ? `Agent · ${agentSdk}` : 'Chat'}
+          </p>
         </div>
         {(status === 'streaming' || status === 'submitted') && (
           <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
@@ -169,6 +214,8 @@ export default function ChatComponent({
           inputRef={inputRef}
           mode={mode}
           onModeChange={persistMode}
+          agentSdk={agentSdk}
+          onAgentSdkChange={persistSdk}
           modeDisabled={isUpdatingMode}
         />
       </div>

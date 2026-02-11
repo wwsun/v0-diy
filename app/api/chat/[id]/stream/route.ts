@@ -1,9 +1,9 @@
-import { chatAgent, type ChatAgentUIMessage } from '@/util/ai/agent';
-import type { ChatMode, MyUIMessage } from '@/util/chat-schema';
+import { getAgentAdapter } from '@/util/agent-adapters/registry';
+import type { AgentSdk, ChatMode, MyUIMessage } from '@/util/chat-schema';
 import { ensureMessageIds } from '@/util/chat-message';
+import { applyMessageTrigger, isValidChatMode } from '@/util/chat-request';
 import { readChat, readChatIfExists, saveChat } from '@util/chat-store';
 import {
-  createAgentUIStreamResponse,
   convertToModelMessages,
   generateId,
   stepCountIs,
@@ -24,82 +24,70 @@ export async function POST(req: Request) {
     trigger,
     messageId,
     mode,
+    agentSdk,
   }: {
     message: MyUIMessage | undefined;
     id: string;
     trigger: 'submit-message' | 'regenerate-message';
     messageId: string | undefined;
     mode?: ChatMode;
+    agentSdk?: AgentSdk;
   } = await req.json();
 
-  if (mode !== undefined && mode !== 'chat' && mode !== 'agent') {
+  if (mode !== undefined && !isValidChatMode(mode)) {
     return Response.json({ ok: false, error: 'invalid_mode' }, { status: 400 });
+  }
+
+  if (
+    agentSdk !== undefined &&
+    agentSdk !== 'vercel-ai' &&
+    agentSdk !== 'codex'
+  ) {
+    return Response.json(
+      { ok: false, error: 'invalid_agent_sdk' },
+      { status: 400 },
+    );
   }
 
   const chat = await readChat(id);
   let messages: MyUIMessage[] = chat.messages;
   const effectiveMode = mode ?? chat.mode;
+  const effectiveAgentSdk = agentSdk ?? chat.agentSdk;
 
-  if (trigger === 'submit-message') {
-    if (messageId != null) {
-      const messageIndex = messages.findIndex((m) => m.id === messageId);
-
-      if (messageIndex === -1) {
-        throw new Error(`message ${messageId} not found`);
-      }
-
-      messages = messages.slice(0, messageIndex);
-      messages.push(message!);
-    } else {
-      messages = [...messages, message!];
-    }
-  } else if (trigger === 'regenerate-message') {
-    const messageIndex =
-      messageId == null
-        ? messages.length - 1
-        : messages.findIndex((message) => message.id === messageId);
-
-    if (messageIndex === -1) {
-      throw new Error(`message ${messageId} not found`);
-    }
-
-    // set the messages to the message before the assistant message
-    messages = messages.slice(
-      0,
-      messages[messageIndex].role === 'assistant'
-        ? messageIndex
-        : messageIndex + 1,
-    );
-  }
+  messages = applyMessageTrigger({
+    messages,
+    trigger,
+    message,
+    messageId,
+  });
 
   messages = ensureMessageIds(messages);
 
   // save the user message and mode
-  saveChat({ id, messages, mode: effectiveMode });
+  saveChat({
+    id,
+    messages,
+    mode: effectiveMode,
+    agentSdk: effectiveAgentSdk,
+  });
 
   if (effectiveMode === 'agent') {
-    const agentMessages = messages as unknown as ChatAgentUIMessage[];
-
-    return createAgentUIStreamResponse({
-      agent: chatAgent,
-      uiMessages: agentMessages,
-      originalMessages: agentMessages,
-      generateMessageId: () => generateId(),
-      messageMetadata: ({ part }) => {
-        if (part.type === 'start') {
-          return { createdAt: Date.now() };
-        }
+    return getAgentAdapter(effectiveAgentSdk).runAsUIMessageStream({
+      chat: {
+        ...chat,
+        mode: effectiveMode,
+        agentSdk: effectiveAgentSdk,
       },
-      onFinish: ({ messages: finalMessages }) => {
-        saveChat({
+      messages,
+      metadata: { createdAt: Date.now() },
+      persist: async ({ messages: nextMessages, agentRuntimeState }) => {
+        await saveChat({
           id,
-          messages: finalMessages as unknown as MyUIMessage[],
+          messages: nextMessages,
           mode: effectiveMode,
+          agentSdk: effectiveAgentSdk,
+          agentRuntimeState,
         });
-      },
-      onError: error => {
-        console.error(error);
-        return 'An error occurred.';
       },
     });
   }
@@ -140,6 +128,7 @@ export async function POST(req: Request) {
             id,
             messages,
             mode: effectiveMode,
+            agentSdk: effectiveAgentSdk,
           });
         }
       }
@@ -162,7 +151,12 @@ export async function POST(req: Request) {
       }
     },
     onFinish: ({ messages }) => {
-      saveChat({ id, messages, mode: effectiveMode });
+      saveChat({
+        id,
+        messages,
+        mode: effectiveMode,
+        agentSdk: effectiveAgentSdk,
+      });
     },
   });
 }

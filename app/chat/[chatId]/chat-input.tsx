@@ -1,7 +1,8 @@
-import type { ChatMode } from '@/util/chat-schema';
+import type { AgentSdk, ChatMode } from '@/util/chat-schema';
 import { useEffect, useState } from 'react';
 import { SendHorizonal, Square } from 'lucide-react';
 import ModeToggle from '../mode-toggle';
+import SdkToggle from '../sdk-toggle';
 
 export default function ChatInput({
   status,
@@ -10,6 +11,8 @@ export default function ChatInput({
   stop,
   mode,
   onModeChange,
+  agentSdk,
+  onAgentSdkChange,
   modeDisabled = false,
 }: {
   status: string;
@@ -18,6 +21,8 @@ export default function ChatInput({
   stop: () => void;
   mode: ChatMode;
   onModeChange: (mode: ChatMode) => void;
+  agentSdk: AgentSdk;
+  onAgentSdkChange: (sdk: AgentSdk) => void;
   modeDisabled?: boolean;
 }) {
   const [text, setText] = useState('');
@@ -64,6 +69,17 @@ export default function ChatInput({
           disabled={status !== 'ready' || modeDisabled}
         />
       </div>
+
+      {mode === 'agent' && (
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-slate-500">Agent SDK</span>
+          <SdkToggle
+            value={agentSdk}
+            onChange={onAgentSdkChange}
+            disabled={status !== 'ready' || modeDisabled}
+          />
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         <textarea

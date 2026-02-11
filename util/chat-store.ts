@@ -2,7 +2,13 @@ import { generateId } from 'ai';
 import { existsSync, mkdirSync } from 'fs';
 import { readdir, readFile, unlink, writeFile } from 'fs/promises';
 import path from 'path';
-import { ChatData, ChatMode, MyUIMessage } from './chat-schema';
+import {
+  AgentSdk,
+  ChatAgentRuntimeState,
+  ChatData,
+  ChatMode,
+  MyUIMessage,
+} from './chat-schema';
 
 // example implementation for demo purposes
 // in a real app, you would save the chat to a database
@@ -20,12 +26,16 @@ export async function saveChat({
   messages,
   canceledAt,
   mode,
+  agentSdk,
+  agentRuntimeState,
 }: {
   id: string;
   activeStreamId?: string | null;
   messages?: MyUIMessage[];
   canceledAt?: number | null;
   mode?: ChatMode;
+  agentSdk?: AgentSdk;
+  agentRuntimeState?: ChatAgentRuntimeState;
 }): Promise<boolean> {
   const chat = await readChatIfExists(id);
 
@@ -47,6 +57,14 @@ export async function saveChat({
 
   if (mode !== undefined) {
     chat.mode = mode;
+  }
+
+  if (agentSdk !== undefined) {
+    chat.agentSdk = agentSdk;
+  }
+
+  if (agentRuntimeState !== undefined) {
+    chat.agentRuntimeState = agentRuntimeState;
   }
 
   await writeChat(chat);
@@ -94,6 +112,10 @@ export async function readChatIfExists(id: string): Promise<ChatData | null> {
     id: chat.id ?? id,
     messages: chat.messages ?? [],
     mode: chat.mode === 'agent' ? 'agent' : 'chat',
+    agentSdk: chat.agentSdk === 'codex' ? 'codex' : 'vercel-ai',
+    agentRuntimeState: {
+      codexThreadId: chat.agentRuntimeState?.codexThreadId ?? null,
+    },
     createdAt: chat.createdAt ?? Date.now(),
     activeStreamId: chat.activeStreamId ?? null,
     canceledAt: chat.canceledAt ?? null,
@@ -146,6 +168,10 @@ function createBlankChat(id: string): ChatData {
     id,
     messages: [],
     mode: 'chat',
+    agentSdk: 'vercel-ai',
+    agentRuntimeState: {
+      codexThreadId: null,
+    },
     createdAt: Date.now(),
     activeStreamId: null,
     canceledAt: null,

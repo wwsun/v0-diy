@@ -19,6 +19,5 @@ export async function PATCH(
 
   await saveChat({ id, mode });
 
-  return Response.json({ ok: true, mode });
+  return Response.json({ ok: true, mode, agentSdk: chat.agentSdk });
 }
-

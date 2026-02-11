@@ -72,6 +72,10 @@ export default function Message({
   const messageText = message.parts
     .map(part => (part.type === 'text' ? part.text : ''))
     .join('');
+  const isArtifactNotice =
+    !isUser &&
+    (messageText.includes('已创建新版本：') ||
+      messageText.includes('已识别为页面生成任务'));
   const segments = isUser ? [] : splitMessageSegments(messageText);
 
   return (
@@ -108,12 +112,16 @@ export default function Message({
             {messageText}
           </div>
         ) : (
-          <div className="space-y-1.5">
+          <div className={`space-y-1.5 ${isArtifactNotice ? 'text-violet-900' : ''}`}>
             {segments.map((segment, index) =>
               segment.type === 'status' ? (
                 <div
                   key={`segment-${index}`}
-                  className="rounded border border-slate-200 bg-slate-100 px-2 py-1 text-xs text-slate-600"
+                  className={`rounded border px-2 py-1 text-xs ${
+                    isArtifactNotice
+                      ? 'border-violet-200 bg-violet-100 text-violet-700'
+                      : 'border-slate-200 bg-slate-100 text-slate-600'
+                  }`}
                 >
                   {segment.text}
                 </div>

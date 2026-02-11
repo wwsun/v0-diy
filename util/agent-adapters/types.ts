@@ -13,6 +13,8 @@ export type AgentAdapterContext = {
   persist: (updates: {
     messages?: MyUIMessage[];
     agentRuntimeState?: ChatAgentRuntimeState;
+    builderContext?: Partial<ChatData['builderContext']>;
+    artifacts?: ChatData['artifacts'];
   }) => Promise<void>;
 };
 

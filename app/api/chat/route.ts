@@ -1,4 +1,5 @@
-import { getAgentAdapter } from '@/util/agent-adapters/registry';
+import { mergeBuilderContext } from '@/util/builder-schema';
+import { runGeneratePipeline } from '@/util/builder/generate-pipeline';
 import type { AgentSdk, ChatMode, MyUIMessage } from '@/util/chat-schema';
 import { ensureMessageIds } from '@/util/chat-message';
 import { applyMessageTrigger, isValidChatMode } from '@/util/chat-request';
@@ -14,6 +15,28 @@ import { customOpenAIProvider } from '@/util/ai/provider';
 
 const model = customOpenAIProvider('gpt-5');
 
+type ChatRequestBody = {
+  message: MyUIMessage | undefined;
+  id: string;
+  trigger: 'submit-message' | 'regenerate-message';
+  messageId: string | undefined;
+  mode?: ChatMode;
+  agentSdk?: AgentSdk;
+  builderContext?: {
+    appType?: 'marketing-campaign' | 'report-app';
+    brief?: {
+      industry?: string;
+      objective?: string;
+      style?: string;
+      audience?: string;
+      locale?: string;
+      primaryColor?: string;
+      ctaTone?: string;
+    };
+    selectedTemplateId?: string | null;
+  };
+};
+
 export async function POST(req: Request) {
   const {
     message,
@@ -22,14 +45,8 @@ export async function POST(req: Request) {
     messageId,
     mode,
     agentSdk,
-  }: {
-    message: MyUIMessage | undefined;
-    id: string;
-    trigger: 'submit-message' | 'regenerate-message';
-    messageId: string | undefined;
-    mode?: ChatMode;
-    agentSdk?: AgentSdk;
-  } = await req.json();
+    builderContext,
+  }: ChatRequestBody = await req.json();
 
   if (mode !== undefined && !isValidChatMode(mode)) {
     return Response.json({ ok: false, error: 'invalid_mode' }, { status: 400 });
@@ -49,7 +66,15 @@ export async function POST(req: Request) {
   const chat = await readChat(id);
   let messages: MyUIMessage[] = chat.messages;
   const effectiveMode = mode ?? chat.mode;
-  const effectiveAgentSdk = agentSdk ?? chat.agentSdk;
+  const effectiveAgentSdk =
+    agentSdk ??
+    (chat.agentSdk === 'codex' || chat.agentSdk === 'vercel-ai'
+      ? chat.agentSdk
+      : 'codex');
+  const effectiveBuilderContext = mergeBuilderContext(
+    chat.builderContext,
+    builderContext,
+  );
 
   messages = applyMessageTrigger({
     messages,
@@ -60,30 +85,42 @@ export async function POST(req: Request) {
 
   messages = ensureMessageIds(messages);
 
-  // save the user message and mode
-  saveChat({
+  await saveChat({
     id,
     messages,
     mode: effectiveMode,
     agentSdk: effectiveAgentSdk,
+    builderContext: effectiveBuilderContext,
+    canceledAt: null,
   });
 
   if (effectiveMode === 'agent') {
-    return getAgentAdapter(effectiveAgentSdk).runAsUIMessageStream({
+    return runGeneratePipeline({
       chat: {
         ...chat,
         mode: effectiveMode,
         agentSdk: effectiveAgentSdk,
+        builderContext: effectiveBuilderContext,
       },
       messages,
       metadata: { createdAt: Date.now() },
-      persist: async ({ messages: nextMessages, agentRuntimeState }) => {
+      appType: effectiveBuilderContext.appType,
+      brief: effectiveBuilderContext.brief,
+      agentSdk: effectiveAgentSdk,
+      persist: async ({
+        messages: nextMessages,
+        agentRuntimeState,
+        builderContext: nextBuilderContext,
+        artifacts,
+      }) => {
         await saveChat({
           id,
           messages: nextMessages,
           mode: effectiveMode,
           agentSdk: effectiveAgentSdk,
           agentRuntimeState,
+          builderContext: nextBuilderContext,
+          artifacts,
         });
       },
     });
@@ -103,7 +140,6 @@ export async function POST(req: Request) {
     },
     stopWhen: stepCountIs(5),
     abortSignal: userStopSignal.signal,
-    // throttle reading from chat store to max once per second
     onChunk: throttle(async ({ chunk }) => {
       const chatState = await readChatIfExists(id);
 
@@ -118,18 +154,15 @@ export async function POST(req: Request) {
         return;
       }
 
-      // Accumulate text and save incrementally
-      if (chunk.type === 'text-delta') {
-        if (currentMessageId) {
-          saveChat({
-            id,
-            messages,
-            mode: effectiveMode,
-            agentSdk: effectiveAgentSdk,
-          });
-        }
+      if (chunk.type === 'text-delta' && currentMessageId) {
+        void saveChat({
+          id,
+          messages,
+          mode: effectiveMode,
+          agentSdk: effectiveAgentSdk,
+        });
       }
-    }, 500), // Save every 500ms
+    }, 500),
     onAbort: () => {
       console.log('aborted');
     },
@@ -147,10 +180,10 @@ export async function POST(req: Request) {
         return { createdAt: Date.now() };
       }
     },
-    onFinish: ({ messages }) => {
-      saveChat({
+    onFinish: ({ messages: finishedMessages }) => {
+      void saveChat({
         id,
-        messages,
+        messages: finishedMessages,
         mode: effectiveMode,
         agentSdk: effectiveAgentSdk,
       });

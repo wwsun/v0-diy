@@ -1,9 +1,23 @@
 import type { AgentSdk, ChatMode } from '@/util/chat-schema';
+import { mergeBuilderContext } from '@/util/builder-schema';
 import { readChatIfExists, saveChat } from '@util/chat-store';
 
 type AgentConfigBody = {
   mode?: ChatMode;
   agentSdk?: AgentSdk;
+  builderContext?: {
+    appType?: 'marketing-campaign' | 'report-app';
+    brief?: {
+      industry?: string;
+      objective?: string;
+      style?: string;
+      audience?: string;
+      locale?: string;
+      primaryColor?: string;
+      ctaTone?: string;
+    };
+    selectedTemplateId?: string | null;
+  };
 };
 
 export async function PATCH(
@@ -11,7 +25,20 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const { mode, agentSdk }: AgentConfigBody = await req.json();
+  const body = (await req.json()) as AgentConfigBody;
+  const { mode, agentSdk, builderContext } = body;
+
+  const hasAnyUpdate =
+    mode !== undefined ||
+    agentSdk !== undefined ||
+    builderContext !== undefined;
+
+  if (!hasAnyUpdate) {
+    return Response.json(
+      { ok: false, error: 'missing_update_payload' },
+      { status: 400 },
+    );
+  }
 
   if (mode !== undefined && mode !== 'chat' && mode !== 'agent') {
     return Response.json({ ok: false, error: 'invalid_mode' }, { status: 400 });
@@ -35,17 +62,22 @@ export async function PATCH(
 
   const nextMode = mode ?? chat.mode;
   const nextAgentSdk = agentSdk ?? chat.agentSdk;
+  const nextBuilderContext = mergeBuilderContext(
+    chat.builderContext,
+    builderContext,
+  );
 
   await saveChat({
     id,
     mode: nextMode,
     agentSdk: nextAgentSdk,
+    builderContext: nextBuilderContext,
   });
 
   return Response.json({
     ok: true,
     mode: nextMode,
     agentSdk: nextAgentSdk,
+    builderContext: nextBuilderContext,
   });
 }
-

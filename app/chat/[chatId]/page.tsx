@@ -24,9 +24,7 @@ export default async function Page(props: {
       <Sidebar activeChatId={chatId} />
 
       <section className="min-h-0">
-        <div className="flex h-full min-h-0 flex-col">
-          <Chat chatData={chatData} resume={chatData.activeStreamId !== null} />
-        </div>
+        <Chat chatData={chatData} resume={chatData.activeStreamId !== null} />
       </section>
     </main>
   );

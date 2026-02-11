@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'AI SDK - Next.js OpenAI Examples',
-  description: 'Examples of using the AI SDK with Next.js and OpenAI.',
+  title: 'AI Chat Playground',
+  description: 'A clean chat interface built with Next.js and AI SDK.',
 };
 
 export default function RootLayout({
@@ -12,7 +12,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <div className="min-h-screen">{children}</div>
+      </body>
     </html>
   );
 }

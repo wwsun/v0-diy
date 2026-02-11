@@ -4,6 +4,7 @@ import { invalidateRouterCache } from '@/app/actions';
 import type { MyUIMessage } from '@/util/chat-schema';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
+import { Bot, Loader2 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import ChatInput from './chat-input';
 import Message from './message';
@@ -17,7 +18,8 @@ export default function ChatComponent({
   isNewChat?: boolean;
   resume?: boolean;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { status, sendMessage, messages, regenerate, stop } = useChat({
     id: chatData.id,
@@ -70,34 +72,65 @@ export default function ChatComponent({
     inputRef.current?.focus();
   }, []);
 
-  return (
-    <div className="flex flex-col py-24 mx-auto w-full max-w-md stretch">
-      {messages.map(message => (
-        <Message
-          key={message.id}
-          message={message}
-          regenerate={regenerate}
-          sendMessage={sendMessage}
-          status={status}
-        />
-      ))}
-      <ChatInput
-        status={status}
-        stop={() => {
-          // send stop with chat id to the new api route
-          fetch(`/api/chat/${chatData.id}/stream`, {
-            method: 'DELETE',
-          });
-        }}
-        onSubmit={text => {
-          sendMessage({ text, metadata: { createdAt: Date.now() } });
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages, status]);
 
-          if (isNewChat) {
-            window.history.pushState(null, '', `/chat/${chatData.id}`);
-          }
-        }}
-        inputRef={inputRef}
-      />
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-white">
+      <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
+        <div>
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+            <Bot className="size-4 text-slate-500" />
+            Conversation
+          </h2>
+          <p className="text-[11px] text-slate-500">Chat ID: {chatData.id}</p>
+        </div>
+        {(status === 'streaming' || status === 'submitted') && (
+          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
+            <Loader2 className="size-3.5 animate-spin" />
+            Generating...
+          </span>
+        )}
+      </div>
+
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-2 py-2">
+        {messages.length === 0 ? (
+          <div className="rounded-md border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+            Start by typing a message below.
+          </div>
+        ) : (
+          messages.map(message => (
+            <Message
+              key={message.id}
+              message={message}
+              regenerate={regenerate}
+              sendMessage={sendMessage}
+              status={status}
+            />
+          ))
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      <div className="sticky bottom-0 border-t border-slate-200 bg-white px-2 py-2">
+        <ChatInput
+          status={status}
+          stop={() => {
+            fetch(`/api/chat/${chatData.id}/stream`, {
+              method: 'DELETE',
+            });
+          }}
+          onSubmit={text => {
+            sendMessage({ text, metadata: { createdAt: Date.now() } });
+
+            if (isNewChat) {
+              window.history.pushState(null, '', `/chat/${chatData.id}`);
+            }
+          }}
+          inputRef={inputRef}
+        />
+      </div>
     </div>
   );
 }

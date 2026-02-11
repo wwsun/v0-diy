@@ -1,9 +1,15 @@
 import type { MyUIMessage } from '@/util/chat-schema';
 import { readChat, saveChat } from '@util/chat-store';
-import { convertToModelMessages, generateId, streamText } from 'ai';
-import { after } from 'next/server';
-import { createResumableStreamContext } from 'resumable-stream';
+import {
+  convertToModelMessages,
+  generateId,
+  stepCountIs,
+  streamText,
+} from 'ai';
 import throttle from 'throttleit';
+import { customOpenAIProvider } from '@/util/ai/provider';
+
+const model = customOpenAIProvider('gpt-5');
 
 export async function POST(req: Request) {
   const {
@@ -23,7 +29,7 @@ export async function POST(req: Request) {
 
   if (trigger === 'submit-message') {
     if (messageId != null) {
-      const messageIndex = messages.findIndex(m => m.id === messageId);
+      const messageIndex = messages.findIndex((m) => m.id === messageId);
 
       if (messageIndex === -1) {
         throw new Error(`message ${messageId} not found`);
@@ -38,7 +44,7 @@ export async function POST(req: Request) {
     const messageIndex =
       messageId == null
         ? messages.length - 1
-        : messages.findIndex(message => message.id === messageId);
+        : messages.findIndex((message) => message.id === messageId);
 
     if (messageIndex === -1) {
       throw new Error(`message ${messageId} not found`);
@@ -54,21 +60,42 @@ export async function POST(req: Request) {
   }
 
   // save the user message
-  saveChat({ id, messages, activeStreamId: null });
+  saveChat({ id, messages });
 
   const userStopSignal = new AbortController();
+  let currentMessageId: string | null = null;
+  let accumulatedText = '';
 
   const result = streamText({
-    model: 'openai/gpt-5-mini',
+    model,
     messages: await convertToModelMessages(messages),
+    tools: {},
+    providerOptions: {
+      langbase: {
+        reasoningEffort: 'high',
+      },
+    },
+    stopWhen: stepCountIs(5),
     abortSignal: userStopSignal.signal,
     // throttle reading from chat store to max once per second
-    onChunk: throttle(async () => {
+    onChunk: throttle(async ({ chunk }) => {
       const { canceledAt } = await readChat(id);
       if (canceledAt) {
         userStopSignal.abort();
+        return;
       }
-    }, 1000),
+
+      // Accumulate text and save incrementally
+      if (chunk.type === 'text-delta') {
+        accumulatedText += chunk.textDelta;
+        if (currentMessageId) {
+          saveChat({
+            id,
+            messages,
+          });
+        }
+      }
+    }, 500), // Save every 500ms
     onAbort: () => {
       console.log('aborted');
     },
@@ -76,24 +103,18 @@ export async function POST(req: Request) {
 
   return result.toUIMessageStreamResponse({
     originalMessages: messages,
-    generateMessageId: generateId,
+    generateMessageId: () => {
+      const msgId = generateId();
+      currentMessageId = msgId;
+      return msgId;
+    },
     messageMetadata: ({ part }) => {
       if (part.type === 'start') {
         return { createdAt: Date.now() };
       }
     },
     onFinish: ({ messages }) => {
-      saveChat({ id, messages, activeStreamId: null });
-    },
-    async consumeSseStream({ stream }) {
-      const streamId = generateId();
-
-      // send the sse stream into a resumable stream sink as well:
-      const streamContext = createResumableStreamContext({ waitUntil: after });
-      await streamContext.createNewResumableStream(streamId, () => stream);
-
-      // update the chat with the streamId
-      saveChat({ id, activeStreamId: streamId });
+      saveChat({ id, messages });
     },
   });
 }

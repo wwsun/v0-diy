@@ -1,43 +1,123 @@
+import type { MyUIMessage } from '@/util/chat-schema';
 import { readChat, saveChat } from '@util/chat-store';
-import { UI_MESSAGE_STREAM_HEADERS } from 'ai';
-import { after } from 'next/server';
-import { createResumableStreamContext } from 'resumable-stream';
+import {
+  convertToModelMessages,
+  generateId,
+  stepCountIs,
+  streamText,
+} from 'ai';
+import throttle from 'throttleit';
+// import { weatherTool } from '@/tool/weather-tool';
+// import { convertFahrenheitToCelsius } from '@/tool/convert-celsius-tool';
+// import { stockTool } from '@/tool/stock-tool';
+import { customOpenAIProvider } from '@/util/ai/provider';
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
+const model = customOpenAIProvider('gpt-5');
+
+export async function POST(req: Request) {
+  const {
+    message,
+    id,
+    trigger,
+    messageId,
+  }: {
+    message: MyUIMessage | undefined;
+    id: string;
+    trigger: 'submit-message' | 'regenerate-message';
+    messageId: string | undefined;
+  } = await req.json();
 
   const chat = await readChat(id);
+  let messages: MyUIMessage[] = chat.messages;
 
-  if (chat.activeStreamId == null) {
-    // no content response when there is no active stream
-    return new Response(null, { status: 204 });
+  if (trigger === 'submit-message') {
+    if (messageId != null) {
+      const messageIndex = messages.findIndex((m) => m.id === messageId);
+
+      if (messageIndex === -1) {
+        throw new Error(`message ${messageId} not found`);
+      }
+
+      messages = messages.slice(0, messageIndex);
+      messages.push(message!);
+    } else {
+      messages = [...messages, message!];
+    }
+  } else if (trigger === 'regenerate-message') {
+    const messageIndex =
+      messageId == null
+        ? messages.length - 1
+        : messages.findIndex((message) => message.id === messageId);
+
+    if (messageIndex === -1) {
+      throw new Error(`message ${messageId} not found`);
+    }
+
+    // set the messages to the message before the assistant message
+    messages = messages.slice(
+      0,
+      messages[messageIndex].role === 'assistant'
+        ? messageIndex
+        : messageIndex + 1,
+    );
   }
 
-  const streamContext = createResumableStreamContext({
-    waitUntil: after,
+  // save the user message
+  saveChat({ id, messages });
+
+  const userStopSignal = new AbortController();
+  let currentMessageId: string | null = null;
+  let accumulatedText = '';
+
+  const result = streamText({
+    model,
+    messages: await convertToModelMessages(messages),
+    tools: {},
+    providerOptions: {
+      langbase: {
+        reasoningEffort: 'high',
+      },
+    },
+    stopWhen: stepCountIs(5),
+    abortSignal: userStopSignal.signal,
+    // throttle reading from chat store to max once per second
+    onChunk: throttle(async ({ chunk }) => {
+      const { canceledAt } = await readChat(id);
+      if (canceledAt) {
+        userStopSignal.abort();
+        return;
+      }
+
+      // Accumulate text and save incrementally
+      if (chunk.type === 'text-delta') {
+        accumulatedText += chunk.textDelta;
+        if (currentMessageId) {
+          saveChat({
+            id,
+            messages,
+          });
+        }
+      }
+    }, 500), // Save every 500ms
+    onAbort: () => {
+      console.log('aborted');
+    },
   });
 
-  return new Response(
-    await streamContext.resumeExistingStream(chat.activeStreamId),
-    { headers: UI_MESSAGE_STREAM_HEADERS },
-  );
-}
-
-// DELETE route to stop the stream
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
-
-  const chat = await readChat(id);
-
-  console.log('canceling stream for chat', id);
-
-  await saveChat({ ...chat, canceledAt: Date.now() });
-
-  return new Response(null, { status: 200 });
+  return result.toUIMessageStreamResponse({
+    originalMessages: messages,
+    generateMessageId: () => {
+      const msgId = generateId();
+      currentMessageId = msgId;
+      return msgId;
+    },
+    messageMetadata: ({ part }) => {
+      if (part.type === 'start') {
+        return { createdAt: Date.now() };
+      }
+    },
+    onFinish: ({ messages }) => {
+      saveChat({ id, messages });
+    },
+  });
 }

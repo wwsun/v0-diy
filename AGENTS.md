@@ -1,46 +1,55 @@
-# Repository Guidelines
+# AGENTS.md
 
-## Project Structure & Module Organization
-This repository is a Next.js (App Router) TypeScript app.
+Agent-focused instructions for this repository. Keep this file updated as code patterns evolve.
 
-- `app/`: routes, layouts, server actions, and UI components.
-  - `app/api/**/route.ts`: API route handlers.
-  - `app/chat/[chatId]/*`: dynamic chat UI and route-specific components.
-- `util/`: shared schemas and state helpers (for example `chat-schema.ts`, `chat-store.ts`).
-- Root config: `next.config.js`, `tailwind.config.js`, `postcss.config.js`, `tsconfig.json`.
-- Env files: copy `.env.local.example` to `.env.local` for local setup.
+## Project overview
+- Stack: Next.js App Router + TypeScript + Tailwind + Vercel AI SDK.
+- Chat data is file-based in `.chats/*.json` via `util/chat-store.ts`.
+- Home page (`/`) is a launcher: submit first message, then navigate to `/chat/:id`.
 
-## Build, Test, and Development Commands
-Use npm scripts from `package.json`:
+## Setup commands
+- Install deps: `npm install`
+- Dev server: `npm run dev`
+- Type check (required): `npx tsc --noEmit`
+- Production build: `npm run build`
 
-- `npm run dev`: start local dev server (`http://localhost:3000`).
-- `npm run build`: create production build.
-- `npm run start`: run the production build locally.
-- `npm run lint`: run Next.js + ESLint checks.
+Note: `npm run lint` currently uses `next lint` and may prompt interactively if ESLint config is missing.
 
-Run `npm install` before first start.
+## Project structure
+- `app/page.tsx`: home shell (sidebar + new chat launcher).
+- `app/chat/sidebar.tsx`: shared sidebar for home and chat pages.
+- `app/chat/new-chat-launcher.tsx`: first-message submit + route jump.
+- `app/chat/[chatId]/page.tsx`: chat route page + existence checks.
+- `app/chat/[chatId]/chat.tsx`: chat UI and transport wiring.
+- `app/api/chat/**/route.ts`: streaming chat and stop/delete endpoints.
+- `util/chat-store.ts`: persistence helpers (`readChat`, `readChatIfExists`, `saveChat`, `deleteChat`).
 
-## Coding Style & Naming Conventions
-- Language: TypeScript + React function components.
-- Indentation: 2 spaces; keep imports grouped and ordered logically.
-- Components/files: use lowercase route files (`page.tsx`, `layout.tsx`, `route.ts`), and descriptive kebab/lowercase names for utility files (for example `chat-store.ts`).
-- Prefer explicit types on exported utilities and shared function interfaces.
-- Styling: use Tailwind utility classes in JSX and keep global styles in `app/globals.css`.
+## Do
+- Keep diffs small and focused; preserve existing behavior unless asked.
+- Reuse shared components (`Sidebar`, `ChatListItem`) before creating new ones.
+- Use `readChatIfExists` for existence checks; use `readChat` only when creation is intended.
+- Keep UI compact and full-screen layout compatible (current sidebar width is `220px`).
+- Run `npx tsc --noEmit` after changes.
 
-## Testing Guidelines
-There is currently no dedicated test suite in this repository.
+## Don’t
+- Don’t commit secrets or modify `.env.local` values in repo.
+- Don’t edit generated/runtime artifacts (`.next/`, `.chats/`, `tsconfig.tsbuildinfo`, `node_modules/`).
+- Don’t introduce heavy dependencies without explicit approval.
+- Don’t rewrite unrelated files while fixing targeted tasks.
 
-- Minimum validation for each change: `npm run lint` and a manual smoke test in `npm run dev`.
-- If you add tests, colocate them near features (for example under `app/**`) and use clear names like `*.test.ts` or `*.test.tsx`.
+## Validation checklist
+- For UI changes: manual smoke test in browser
+  - Home shows sidebar.
+  - Home send creates/opens `/chat/:id`.
+  - Chat sidebar switch and delete work.
+- For chat/data changes:
+  - Stream still works via `/api/chat` and `/api/chat/[id]/stream`.
+  - Deleting active chat redirects to `/`.
 
-## Commit & Pull Request Guidelines
-Git history currently uses Conventional Commits (example: `feat: init vercel ai sdk`).
+## PR / commit guidance
+- Use Conventional Commits (`feat:`, `fix:`, `refactor:` etc.).
+- Include: scope, behavior change, verification commands, and screenshots for UI updates.
 
-- Commit format: `type(scope): short summary` (e.g., `fix(chat): handle empty stream`).
-- Keep commits focused and atomic.
-- PRs should include: purpose, key changes, verification steps, and screenshots/GIFs for UI changes.
-- Link related issues/tasks and note any required env/config changes.
-
-## Security & Configuration Tips
-- Never commit secrets; keep API keys only in `.env.local`.
-- Update `.env.local.example` when adding new required environment variables.
+## Safety boundaries
+- Ask first before: deleting many files, changing env contract, or adding dependencies.
+- If new env vars are required, update `.env.local.example` in the same change.

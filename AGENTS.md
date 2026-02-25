@@ -3,10 +3,17 @@
 Agent-focused instructions for this repository. Keep this file updated as code patterns evolve.
 
 ## Project overview
-- Stack: Next.js App Router + TypeScript + Tailwind + AI SDK 6.
-- Chat runtime supports two SDK paths in Agent mode (`vercel-ai`, `codex`) via adapter registry.
-- Chat data is file-based in `.chats/*.json` via `util/chat-store.ts`.
-- Home page (`/`) is a launcher: submit first message, then navigate to `/chat/:id`.
+- Stack: Next.js App Router + TypeScript + Tailwind + AI SDK 6 + OpenAI Codex SDK.
+- Architecture follows a 3-layer split: UI layer (`app/**`), business logic (`util/builder/**`, `util/agent-adapters/**`), persistence (`util/chat-store.ts` + `.chats/*.json`).
+- Agent runtime supports two SDK paths in Agent mode (`vercel-ai`, `codex`) through a unified `AgentAdapter` interface.
+- `ChatData` includes messages, agent settings, builder context, and artifact versions.
+- Home page (`/`) launches chats; `/chat/:id` handles conversation + artifact preview/code panel.
+
+## Technical references
+- `docs/technical-implementation.md`: primary architecture reference (pipeline, models, route responsibilities).
+- `guide/codex-sdk.md`: Codex SDK usage details and thread lifecycle guidance.
+- `guide/ai-sdk.md`: Vercel AI SDK agent patterns (`ToolLoopAgent`, UI streaming, typing).
+- If documentation and code diverge, treat current code as source of truth and update docs in the same change.
 
 ## Setup commands
 - Install deps: `npm install`
@@ -17,6 +24,7 @@ Agent-focused instructions for this repository. Keep this file updated as code p
 Note: `npm run lint` currently uses `next lint` and may prompt interactively if ESLint config is missing.
 
 ## Project structure
+- `docs/technical-implementation.md`: technical implementation and architecture reference.
 - `guide/codex-sdk.md`: local reference for Codex SDK usage patterns and constraints.
 - `guide/ai-sdk.md`: local reference for Vercel AI SDK Agent patterns (`ToolLoopAgent`, UI streaming, typing).
 - `app/page.tsx`: home shell (sidebar + new chat launcher).
@@ -29,13 +37,19 @@ Note: `npm run lint` currently uses `next lint` and may prompt interactively if 
 - `app/chat/[chatId]/chat.tsx`: chat UI and transport wiring.
 - `app/chat/[chatId]/chat-input.tsx`: message composer with submit/stop behavior.
 - `app/chat/[chatId]/message.tsx`: message rendering.
+- `app/chat/[chatId]/artifact-card.tsx`: artifact history item and activation action.
+- `app/chat/[chatId]/preview-panel.tsx`: mobile preview/code panel for active artifact.
 - `app/actions.ts`: server action helpers (router cache invalidation hooks).
 - `app/api/chat/route.ts`: primary chat stream endpoint (submit/regenerate).
 - `app/api/chat/[id]/stream/route.ts`: chat stream endpoint by chat id.
-- `app/api/chat/[id]/route.ts`: chat delete endpoint.
+- `app/api/chat/[id]/route.ts`: chat read/delete endpoint.
+- `app/api/chat/[id]/generate/route.ts`: generate pipeline endpoint with explicit builder inputs.
+- `app/api/chat/[id]/artifact/[artifactId]/route.ts`: artifact fetch/activate endpoint.
 - `app/api/chat/[id]/agent-config/route.ts`: unified mode + SDK persistence endpoint.
 - `app/api/chat/[id]/mode/route.ts`: mode-only endpoint (legacy/compat; prefer `agent-config`).
-- `util/chat-store.ts`: persistence helpers (`createChat`, `readChat`, `readChatIfExists`, `readAllChats`, `saveChat`, `appendMessageToChat`, `deleteChat`).
+- `util/builder-schema.ts`: builder context + campaign DSL + artifact schemas.
+- `util/builder/*.ts`: generate pipeline (`intent` -> `dsl` -> `compile/preview` -> `persist artifact`).
+- `util/chat-store.ts`: persistence helpers (`createChat`, `readChat`, `readChatIfExists`, `readAllChats`, `saveChat`, `appendMessageToChat`, `appendArtifactVersion`, `activateArtifactVersion`, `deleteChat`).
 - `util/chat-schema.ts`: shared chat/message/mode/agent types.
 - `util/chat-request.ts`: request validation + message trigger application.
 - `util/chat-message.ts`: message utilities (e.g. message ID normalization).
@@ -43,6 +57,14 @@ Note: `npm run lint` currently uses `next lint` and may prompt interactively if 
 - `util/agent-adapters/*.ts`: adapter implementations for each agent SDK.
 - `util/ai/provider.ts`: model provider factory.
 - `util/ai/agent.ts`: core AI agent helpers.
+
+## Generate pipeline guidance
+- Keep generation orchestration in `util/builder/generate-pipeline.ts`; route handlers should only parse/validate request and persist boundaries.
+- Keep intent detection centralized in `util/builder/intent-resolver.ts` (generate vs normal chat).
+- Generate DSL via schema-constrained flow (`campaignDslSchema` + `generateObject`) in `util/builder/dsl-generator.ts`.
+- Build artifact output through compiler + preview HTML (`dsl-compiler.ts`, `preview-html.ts`) and persist via artifact store helpers.
+- Preserve `sourceMessageId`, `summary`, and `activeArtifactId` consistency when creating/activating artifact versions.
+- Use `mergeBuilderContext` for partial context updates; avoid hand-merging nested brief fields in route handlers.
 
 ## SDK-specific guidance
 
@@ -67,6 +89,8 @@ Note: `npm run lint` currently uses `next lint` and may prompt interactively if 
 - Use `readChatIfExists` for existence checks; use `readChat` only when creation is intended.
 - Prefer `PATCH /api/chat/[id]/agent-config` when persisting mode and/or SDK from UI.
 - Keep adapter routing centralized in `util/agent-adapters/registry.ts`.
+- Keep builder updates centralized via `builderContext` + `mergeBuilderContext`.
+- Use artifact helpers in `util/chat-store.ts` for version append/activation.
 - Keep UI compact and full-screen layout compatible (current sidebar width is `220px`).
 - Run `npx tsc --noEmit` after changes.
 
@@ -75,6 +99,7 @@ Note: `npm run lint` currently uses `next lint` and may prompt interactively if 
 - Don’t edit generated/runtime artifacts (`.next/`, `.chats/`, `tsconfig.tsbuildinfo`, `node_modules/`).
 - Don’t introduce heavy dependencies without explicit approval.
 - Don’t bypass adapter abstraction by hardcoding SDK-specific logic directly in route handlers.
+- Don’t write artifact/version state directly in UI components; persist through API + store helpers.
 - Don’t rewrite unrelated files while fixing targeted tasks.
 
 ## Validation checklist
@@ -86,6 +111,11 @@ Note: `npm run lint` currently uses `next lint` and may prompt interactively if 
 - For chat/data changes:
   - Stream still works via `/api/chat` and `/api/chat/[id]/stream`.
   - `PATCH /api/chat/[id]/agent-config` correctly updates `mode` and `agentSdk`.
+  - `PATCH /api/chat/[id]/agent-config` correctly persists `builderContext` updates.
+  - Agent generation creates a new artifact version and updates active preview.
+  - `GET /api/chat/[id]/artifact/[artifactId]` returns artifact payload.
+  - `POST /api/chat/[id]/artifact/[artifactId]` switches active artifact version.
+  - `POST /api/chat/[id]/generate` follows intent/DSL/compiler/persist flow without breaking stream UX.
   - In `agent + codex` mode, consecutive turns reuse the same `codexThreadId` when available.
   - In `agent + vercel-ai` mode, responses still stream through `createAgentUIStreamResponse`.
   - Deleting active chat redirects to `/`.

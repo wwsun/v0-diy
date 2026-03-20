@@ -4,7 +4,7 @@ import { invalidateRouterCache } from '@/app/actions';
 import type { MyUIMessage } from '@/util/chat-schema';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { Bot, Loader2 } from 'lucide-react';
+import { Bot, Sparkles } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import ChatInput from './chat-input';
 import Message from './message';
@@ -49,20 +49,16 @@ export default function ChatComponent({
     onFinish(options) {
       console.log('onFinish', options);
 
-      // for new chats, the router cache needs to be invalidated so
-      // navigation to the previous page triggers SSR correctly
       if (isNewChat) {
         invalidateRouterCache();
       }
 
-      // focus the input field again after the response is finished
       requestAnimationFrame(() => {
         inputRef.current?.focus();
       });
     },
   });
 
-  // activate the input field
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
@@ -71,29 +67,36 @@ export default function ChatComponent({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, status]);
 
+  const isGenerating = status === 'streaming' || status === 'submitted';
+
   return (
     <div className="flex h-full min-h-0 bg-white">
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-          <div>
-            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
-              <Bot className="size-4 text-slate-500" />
-              Conversation
-            </h2>
-            <p className="text-[11px] text-slate-500">Chat ID: {chatData.id}</p>
-          </div>
-          {(status === 'streaming' || status === 'submitted') && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
-              <Loader2 className="size-3.5 animate-spin" />
-              Generating...
+        {/* Header */}
+        <div className="glass flex items-center justify-between border-b border-zinc-100 px-4 py-3 sticky top-0 z-10">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-zinc-900">
+            <Bot className="size-4 text-zinc-500" />
+            对话
+          </h2>
+          {isGenerating && (
+            <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+              <span className="flex items-center gap-0.5">
+                <span className="inline-block size-1.5 rounded-full bg-emerald-500 animate-bounce-dot" style={{ animationDelay: '0ms' }} />
+                <span className="inline-block size-1.5 rounded-full bg-emerald-500 animate-bounce-dot" style={{ animationDelay: '160ms' }} />
+                <span className="inline-block size-1.5 rounded-full bg-emerald-500 animate-bounce-dot" style={{ animationDelay: '320ms' }} />
+              </span>
+              生成中
             </span>
           )}
         </div>
 
-        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-2 py-2">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 space-y-4">
           {messages.length === 0 ? (
-            <div className="rounded-md border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-              Start by typing a message below.
+            <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-zinc-200 px-6 py-12 text-center">
+              <div className="flex size-10 items-center justify-center rounded-xl bg-zinc-100">
+                <Sparkles className="size-5 text-zinc-400" />
+              </div>
+              <p className="text-sm text-zinc-500">在下方输入，开始创建你的网页</p>
             </div>
           ) : (
             messages.map(message => (
@@ -110,7 +113,7 @@ export default function ChatComponent({
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="sticky bottom-0 border-t border-slate-200 bg-white px-2 py-2">
+        <div className="sticky bottom-0 border-t border-zinc-100 bg-white/90 px-3 py-3 backdrop-blur-sm">
           <ChatInput
             status={status}
             stop={() => {

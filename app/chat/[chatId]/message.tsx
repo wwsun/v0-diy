@@ -1,6 +1,10 @@
+'use client';
+
 import type { MyUIMessage } from '@/util/chat-schema';
 import { ChatStatus } from 'ai';
+import { motion } from 'framer-motion';
 import { Bot, RefreshCcw, Sparkles, UserRound } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 type MessageSegment = {
   type: 'status' | 'body';
@@ -79,17 +83,20 @@ export default function Message({
   const segments = isUser ? [] : splitMessageSegments(messageText);
 
   return (
-    <article className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <motion.article
+      className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+      initial={{ opacity: 0, x: isUser ? 12 : -12, y: 4 }}
+      animate={{ opacity: 1, x: 0, y: 0 }}
+      transition={{ duration: 0.25, ease: 'easeOut' }}
+    >
       <div
-        className={`max-w-[85%] rounded-md border px-3 py-2.5 text-sm ${
+        className={`max-w-[85%] text-sm ${
           isUser
-            ? 'border-sky-200 bg-sky-50 text-slate-800'
-            : 'border-slate-200 bg-slate-50 text-slate-800'
+            ? 'rounded-2xl rounded-tr-sm bg-zinc-900 px-4 py-3 text-white'
+            : 'rounded-2xl rounded-tl-sm border border-zinc-100 bg-white px-4 py-3 text-zinc-800 shadow-soft-sm'
         }`}
       >
-        <div
-          className="mb-1.5 text-xs text-slate-500"
-        >
+        <div className={`mb-1.5 flex items-center gap-1.5 text-xs ${isUser ? 'text-zinc-400' : 'text-zinc-400'}`}>
           <span className="inline-flex items-center gap-1">
             {isUser ? (
               <UserRound className="size-3.5" />
@@ -112,25 +119,45 @@ export default function Message({
             {messageText}
           </div>
         ) : (
-          <div className={`space-y-1.5 ${isArtifactNotice ? 'text-violet-900' : ''}`}>
+          <div className={`space-y-2 ${isArtifactNotice ? 'text-violet-900' : ''}`}>
             {segments.map((segment, index) =>
               segment.type === 'status' ? (
                 <div
                   key={`segment-${index}`}
-                  className={`rounded border px-2 py-1 text-xs ${
+                  className={`rounded-lg border px-2.5 py-1.5 text-xs ${
                     isArtifactNotice
-                      ? 'border-violet-200 bg-violet-100 text-violet-700'
-                      : 'border-slate-200 bg-slate-100 text-slate-600'
+                      ? 'border-violet-200 bg-violet-50 text-violet-700'
+                      : 'border-zinc-100 bg-zinc-50 text-zinc-500'
                   }`}
                 >
                   {segment.text}
                 </div>
               ) : (
-                <div
-                  key={`segment-${index}`}
-                  className="whitespace-pre-wrap break-words leading-6"
-                >
-                  {segment.text}
+                <div key={`segment-${index}`} className="prose prose-sm max-w-none break-words leading-6">
+                  <ReactMarkdown
+                    components={{
+                      code: ({ children, className }) => {
+                        const isInline = !className;
+                        return isInline ? (
+                          <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-700">
+                            {children}
+                          </code>
+                        ) : (
+                          <code className={`${className} font-mono text-sm`}>{children}</code>
+                        );
+                      },
+                      pre: ({ children }) => (
+                        <pre className="overflow-x-auto rounded-xl bg-zinc-900 p-4 text-zinc-100">{children}</pre>
+                      ),
+                      p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                      ul: ({ children }) => <ul className="mb-2 list-disc pl-4">{children}</ul>,
+                      ol: ({ children }) => <ol className="mb-2 list-decimal pl-4">{children}</ol>,
+                      li: ({ children }) => <li className="mb-1">{children}</li>,
+                      strong: ({ children }) => <strong className="font-semibold text-zinc-900">{children}</strong>,
+                    }}
+                  >
+                    {segment.text}
+                  </ReactMarkdown>
                 </div>
               ),
             )}
@@ -138,28 +165,28 @@ export default function Message({
         )}
 
         {message.role === 'user' && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
             <button
               onClick={() => regenerate({ messageId: message.id })}
-              className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+              className="inline-flex items-center gap-1 rounded-lg border border-white/20 bg-white/10 px-2.5 py-1 text-xs font-medium text-white/80 transition hover:bg-white/20 disabled:opacity-40"
               disabled={status !== 'ready'}
             >
               <RefreshCcw className="size-3.5" />
-              Regenerate
+              重新生成
             </button>
             <button
               onClick={() =>
                 sendMessage({ text: 'Hello', messageId: message.id })
               }
-              className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+              className="inline-flex items-center gap-1 rounded-lg border border-white/20 bg-white/10 px-2.5 py-1 text-xs font-medium text-white/80 transition hover:bg-white/20 disabled:opacity-40"
               disabled={status !== 'ready'}
             >
               <Sparkles className="size-3.5" />
-              Replace with Hello
+              替换为 Hello
             </button>
           </div>
         )}
       </div>
-    </article>
+    </motion.article>
   );
 }

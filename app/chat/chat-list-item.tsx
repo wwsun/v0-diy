@@ -5,6 +5,26 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+function formatChatLabel(createdAt: number): string {
+  const now = new Date();
+  const date = new Date(createdAt);
+
+  const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round((nowDay.getTime() - dateDay.getTime()) / (1000 * 60 * 60 * 24));
+
+  const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+  if (diffDays === 0) {
+    return `今天 ${timeStr}`;
+  } else if (diffDays < 7) {
+    const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    return `${dayNames[date.getDay()]} ${timeStr}`;
+  } else {
+    return `${date.getMonth() + 1}月${date.getDate()}日`;
+  }
+}
+
 export default function ChatListItem({
   chatId,
   createdAt,
@@ -53,21 +73,18 @@ export default function ChatListItem({
   return (
     <li className="group">
       <div
-        className={`flex items-center gap-1 rounded-md border text-xs transition ${
+        className={`flex items-center gap-1 rounded-xl border text-xs transition ${
           isActive
-            ? 'border-slate-300 bg-white text-slate-900'
-            : 'border-transparent text-slate-600 hover:border-slate-200 hover:bg-white'
+            ? 'border-zinc-200 bg-white shadow-soft-sm text-zinc-900'
+            : 'border-transparent text-zinc-600 hover:border-zinc-100 hover:bg-white/80'
         }`}
       >
-        <Link href={`/chat/${chatId}`} className="min-w-0 flex-1 px-2.5 py-2">
-          <div className="flex items-center gap-1.5 truncate font-medium">
-            <MessageSquare className="size-3.5 shrink-0 text-slate-400" />
-            <span className="truncate">{chatId}</span>
-          </div>
-          <div className="mt-1 text-[11px] text-slate-400">
-            <time suppressHydrationWarning>
-              {new Date(createdAt).toLocaleString()}
-            </time>
+        <Link href={`/chat/${chatId}`} className="min-w-0 flex-1 px-3 py-2.5">
+          <div className="flex items-center gap-2 truncate font-medium">
+            <MessageSquare className="size-3.5 shrink-0 text-zinc-400" />
+            <span className="truncate" suppressHydrationWarning>
+              {formatChatLabel(createdAt)}
+            </span>
           </div>
         </Link>
 
@@ -77,7 +94,7 @@ export default function ChatListItem({
               type="button"
               aria-label="Confirm delete chat"
               disabled={isDeleting}
-              className="inline-flex rounded-md p-1 text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex rounded-lg p-1 text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
               onClick={async event => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -91,7 +108,7 @@ export default function ChatListItem({
               type="button"
               aria-label="Cancel delete chat"
               disabled={isDeleting}
-              className="inline-flex rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex rounded-lg p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600 disabled:cursor-not-allowed disabled:opacity-40"
               onClick={event => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -106,7 +123,7 @@ export default function ChatListItem({
             type="button"
             aria-label="Delete chat"
             disabled={isDeleting}
-            className={`mr-1 inline-flex rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40 ${
+            className={`mr-1 inline-flex rounded-lg p-1 text-zinc-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40 ${
               isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
             }`}
             onClick={event => {
@@ -122,4 +139,3 @@ export default function ChatListItem({
     </li>
   );
 }
-

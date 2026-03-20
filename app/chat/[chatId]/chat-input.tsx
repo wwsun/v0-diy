@@ -31,7 +31,7 @@ export default function ChatInput({
 
   return (
     <form
-      className="space-y-1.5"
+      className="space-y-2"
       onSubmit={e => {
         e.preventDefault();
         submitText();
@@ -40,20 +40,20 @@ export default function ChatInput({
       {(status === 'streaming' || status === 'submitted') && (
         <button
           type="button"
-          className="inline-flex items-center rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 transition hover:bg-rose-100"
+          className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 shadow-soft-sm transition hover:bg-zinc-50"
           onClick={stop}
         >
-          <Square className="mr-1 size-3.5" />
-          Stop generating
+          <Square className="mr-1.5 size-3 fill-zinc-600" />
+          停止生成
         </button>
       )}
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-end gap-2 rounded-2xl border border-zinc-200 bg-white/90 p-2 shadow-soft-md backdrop-blur-sm focus-within:shadow-input-focus transition-shadow">
         <textarea
           ref={inputRef}
           rows={2}
-          className="max-h-[140px] min-h-[56px] w-full resize-none rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-1 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100"
-          placeholder="Say something..."
+          className="max-h-[140px] min-h-[52px] w-full resize-none bg-transparent px-2 py-1 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 disabled:cursor-not-allowed disabled:opacity-60"
+          placeholder="描述你想要的网页..."
           disabled={status !== 'ready'}
           value={text}
           onChange={e => setText(e.target.value)}
@@ -67,11 +67,11 @@ export default function ChatInput({
 
         <button
           type="submit"
-          className="inline-flex h-10 items-center rounded-md bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-300"
           disabled={!canSubmit}
         >
-          <SendHorizonal className="mr-1 size-3.5" />
-          Send
+          <SendHorizonal className="size-3.5" />
+          发送
         </button>
       </div>
     </form>

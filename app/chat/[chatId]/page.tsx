@@ -20,7 +20,7 @@ export default async function Page(props: {
   }
 
   return (
-    <main className="grid h-screen w-screen grid-cols-[220px_1fr] bg-white">
+    <main className="grid h-screen w-screen grid-cols-[240px_1fr] bg-white">
       <Sidebar activeChatId={chatId} />
 
       <section className="min-h-0">

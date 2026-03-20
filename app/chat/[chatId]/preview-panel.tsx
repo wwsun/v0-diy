@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Monitor, Smartphone } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 type Viewport = 'desktop' | 'mobile';
 
@@ -17,13 +18,11 @@ export default function PreviewPanel({ chatId, snapshotId: initialSnapshotId, st
   const prevSnapshotIdRef = useRef<string | null>(initialSnapshotId);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 当 prop 变化时同步（e.g. 页面刷新）
   useEffect(() => {
     setSnapshotId(initialSnapshotId);
     prevSnapshotIdRef.current = initialSnapshotId;
   }, [initialSnapshotId]);
 
-  // 流式期间轮询 snapshotId 变化
   useEffect(() => {
     if (status !== 'streaming' && status !== 'submitted') {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -62,43 +61,55 @@ export default function PreviewPanel({ chatId, snapshotId: initialSnapshotId, st
   const hasContent = snapshotId !== null;
 
   return (
-    <aside className="flex h-full min-h-0 w-[480px] flex-col border-l border-slate-200 bg-slate-50">
+    <aside className="flex h-full min-h-0 w-[480px] flex-col border-l border-zinc-100 bg-zinc-50/50">
       {/* 顶部工具栏 */}
-      <div className="border-b border-slate-200 px-3 py-2">
+      <div className="border-b border-zinc-100 px-4 py-2.5 backdrop-blur-sm">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h3 className="text-xs font-semibold text-slate-700">Preview</h3>
-            <p className="text-[11px] text-slate-500">
-              {hasContent ? 'Live preview' : 'No page generated yet.'}
+            <h3 className="text-xs font-semibold text-zinc-700">预览</h3>
+            <p className="text-[11px] text-zinc-400">
+              {hasContent ? '实时预览' : '暂无预览内容'}
             </p>
           </div>
 
-          <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5">
+          {/* 滑动切换按钮 */}
+          <div className="relative inline-flex items-center rounded-xl border border-zinc-200 bg-white p-1 shadow-soft-sm">
+            {viewport === 'desktop' && (
+              <motion.div
+                layoutId="viewport-pill"
+                className="absolute inset-1 rounded-lg bg-zinc-900"
+                style={{ width: 'calc(50% - 4px)' }}
+                transition={{ type: 'spring', bounce: 0.2, duration: 0.35 }}
+              />
+            )}
+            {viewport === 'mobile' && (
+              <motion.div
+                layoutId="viewport-pill"
+                className="absolute inset-1 right-1 left-[calc(50%+4px)] rounded-lg bg-zinc-900"
+                transition={{ type: 'spring', bounce: 0.2, duration: 0.35 }}
+              />
+            )}
             <button
               type="button"
               onClick={() => setViewport('desktop')}
               title="Desktop view"
-              className={`flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition ${
-                viewport === 'desktop'
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
+              className={`relative flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors z-10 ${
+                viewport === 'desktop' ? 'text-white' : 'text-zinc-500 hover:text-zinc-700'
               }`}
             >
               <Monitor className="size-3" />
-              Desktop
+              桌面
             </button>
             <button
               type="button"
               onClick={() => setViewport('mobile')}
               title="Mobile view"
-              className={`flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition ${
-                viewport === 'mobile'
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
+              className={`relative flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors z-10 ${
+                viewport === 'mobile' ? 'text-white' : 'text-zinc-500 hover:text-zinc-700'
               }`}
             >
               <Smartphone className="size-3" />
-              Mobile
+              手机
             </button>
           </div>
         </div>
@@ -108,11 +119,13 @@ export default function PreviewPanel({ chatId, snapshotId: initialSnapshotId, st
       <div className="min-h-0 flex-1 overflow-hidden">
         {!hasContent ? (
           <div className="flex h-full items-center justify-center">
-            <p className="rounded-md border border-dashed border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
-              {status === 'streaming' || status === 'submitted'
-                ? '正在生成页面...'
-                : '输入需求，让 AI 帮你创建页面'}
-            </p>
+            <div className="flex flex-col items-center gap-2 text-center">
+              <p className="text-sm text-zinc-400">
+                {status === 'streaming' || status === 'submitted'
+                  ? '正在生成页面...'
+                  : '输入需求，让 AI 帮你创建页面'}
+              </p>
+            </div>
           </div>
         ) : viewport === 'desktop' ? (
           <iframe
@@ -125,12 +138,12 @@ export default function PreviewPanel({ chatId, snapshotId: initialSnapshotId, st
         ) : (
           <div className="flex h-full items-center justify-center overflow-auto p-4">
             <div
-              className="relative overflow-hidden rounded-[2rem] border-[6px] border-slate-700 bg-white shadow-lg"
+              className="relative overflow-hidden rounded-[2rem] border-[6px] border-zinc-800 bg-white shadow-soft-lg"
               style={{ width: 390, height: 'min(700px, calc(100% - 2rem))' }}
             >
               {/* 手机顶部刘海装饰 */}
               <div className="absolute inset-x-0 top-0 flex justify-center pt-2 z-10">
-                <div className="h-1.5 w-20 rounded-full bg-slate-700" />
+                <div className="h-1.5 w-20 rounded-full bg-zinc-800" />
               </div>
               <iframe
                 key={iframeSrc + '-mobile'}

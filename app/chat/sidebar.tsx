@@ -1,5 +1,5 @@
 import { readAllChats } from '@util/chat-store';
-import { History, Plus } from 'lucide-react';
+import { MessagesSquare, Plus, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import ChatListItem from './chat-list-item';
 
@@ -15,28 +15,35 @@ export default async function Sidebar({
     .slice(0, 5);
 
   return (
-    <aside className="flex flex-col border-r border-slate-200 bg-slate-50">
-      <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-        <h2 className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-          <History className="size-3.5" />
-          Recent Chats
-        </h2>
+    <aside className="flex flex-col border-r border-zinc-100 bg-zinc-50/50">
+      {/* 品牌区 */}
+      <div className="flex items-center gap-2 border-b border-zinc-100 px-4 py-3.5">
+        <div className="flex size-7 items-center justify-center rounded-lg bg-zinc-900">
+          <Sparkles className="size-3.5 text-white" />
+        </div>
+        <span className="text-sm font-semibold tracking-tight text-zinc-900">V0.DIY</span>
+      </div>
+
+      {/* 操作栏 */}
+      <div className="flex items-center justify-between px-4 py-2.5">
+        <span className="text-xs font-medium tracking-wide text-zinc-400 uppercase">recent chats</span>
         <Link
           href="/"
-          className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-slate-900"
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900"
         >
           <Plus className="size-3.5" />
           New
         </Link>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         {recentChats.length === 0 ? (
-          <p className="rounded-md border border-dashed border-slate-200 p-2 text-xs text-slate-500">
-            No chat history.
-          </p>
+          <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-200 px-4 py-8 text-center">
+            <MessagesSquare className="size-5 text-zinc-300" />
+            <p className="text-xs text-zinc-400">暂无对话记录</p>
+          </div>
         ) : (
-          <ul className="space-y-1.5">
+          <ul className="space-y-1">
             {recentChats.map(chat => (
               <ChatListItem
                 key={chat.id}
@@ -51,4 +58,3 @@ export default async function Sidebar({
     </aside>
   );
 }
-

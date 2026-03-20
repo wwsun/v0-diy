@@ -2,24 +2,7 @@ import { generateId } from 'ai';
 import { existsSync, mkdirSync } from 'fs';
 import { readdir, readFile, unlink, writeFile } from 'fs/promises';
 import path from 'path';
-import {
-  AgentSdk,
-  ArtifactVersion,
-  ChatAgentRuntimeState,
-  ChatArtifacts,
-  ChatBuilderContext,
-  ChatData,
-  ChatMode,
-  MyUIMessage,
-  createDefaultBuilderConfig,
-  createEmptyArtifacts,
-} from './chat-schema';
-import { mergeBuilderContext } from './builder-schema';
-import type { BuilderContextPatch } from './builder-schema';
-
-// example implementation for demo purposes
-// in a real app, you would save the chat to a database
-// and use the id from the database entry
+import type { ChatData, MyUIMessage, WorkspacePagesMeta } from './chat-schema';
 
 export async function createChat(): Promise<string> {
   const id = generateId();
@@ -32,133 +15,34 @@ export async function saveChat({
   activeStreamId,
   messages,
   canceledAt,
-  mode,
-  agentSdk,
-  agentRuntimeState,
-  builderContext,
-  artifacts,
+  sdkSessionId,
+  workspacePages,
 }: {
   id: string;
   activeStreamId?: string | null;
   messages?: MyUIMessage[];
   canceledAt?: number | null;
-  mode?: ChatMode;
-  agentSdk?: AgentSdk;
-  agentRuntimeState?: ChatAgentRuntimeState;
-  builderContext?: BuilderContextPatch;
-  artifacts?: ChatArtifacts;
+  sdkSessionId?: string;
+  workspacePages?: Partial<WorkspacePagesMeta>;
 }): Promise<boolean> {
   const chat = await readChatIfExists(id);
+  if (!chat) return false;
 
-  if (!chat) {
-    return false;
-  }
-
-  if (messages !== undefined) {
-    chat.messages = messages;
-  }
-
-  if (activeStreamId !== undefined) {
-    chat.activeStreamId = activeStreamId;
-  }
-
-  if (canceledAt !== undefined) {
-    chat.canceledAt = canceledAt;
-  }
-
-  if (mode !== undefined) {
-    chat.mode = mode;
-  }
-
-  if (agentSdk !== undefined) {
-    chat.agentSdk = agentSdk;
-  }
-
-  if (agentRuntimeState !== undefined) {
-    chat.agentRuntimeState = agentRuntimeState;
-  }
-
-  if (builderContext !== undefined) {
-    chat.builderContext = mergeBuilderContext(chat.builderContext, builderContext);
-  }
-
-  if (artifacts !== undefined) {
-    chat.artifacts = artifacts;
+  if (messages !== undefined) chat.messages = messages;
+  if (activeStreamId !== undefined) chat.activeStreamId = activeStreamId;
+  if (canceledAt !== undefined) chat.canceledAt = canceledAt;
+  if (sdkSessionId !== undefined) chat.sdkSessionId = sdkSessionId;
+  if (workspacePages !== undefined) {
+    chat.workspacePages = { ...chat.workspacePages, ...workspacePages };
   }
 
   await writeChat(chat);
   return true;
-}
-
-export async function appendArtifactVersion({
-  id,
-  artifact,
-}: {
-  id: string;
-  artifact: ArtifactVersion;
-}): Promise<boolean> {
-  const chat = await readChatIfExists(id);
-
-  if (!chat) {
-    return false;
-  }
-
-  chat.artifacts.versions.push(artifact);
-  chat.artifacts.activeArtifactId = artifact.id;
-
-  await writeChat(chat);
-  return true;
-}
-
-export async function activateArtifactVersion({
-  id,
-  artifactId,
-}: {
-  id: string;
-  artifactId: string;
-}): Promise<boolean> {
-  const chat = await readChatIfExists(id);
-
-  if (!chat) {
-    return false;
-  }
-
-  const hasArtifact = chat.artifacts.versions.some(
-    version => version.id === artifactId,
-  );
-
-  if (!hasArtifact) {
-    return false;
-  }
-
-  chat.artifacts.activeArtifactId = artifactId;
-  await writeChat(chat);
-  return true;
-}
-
-export async function appendMessageToChat({
-  id,
-  message,
-}: {
-  id: string;
-  message: MyUIMessage;
-}): Promise<void> {
-  const chat = (await readChatIfExists(id)) ?? createBlankChat(id);
-  chat.messages.push(message);
-  await writeChat(chat);
-}
-
-async function writeChat(chat: ChatData) {
-  await ensureChatDir();
-  await writeFile(getChatFilePath(chat.id), JSON.stringify(chat, null, 2));
 }
 
 export async function readChat(id: string): Promise<ChatData> {
   const existingChat = await readChatIfExists(id);
-  if (existingChat) {
-    return existingChat;
-  }
-
+  if (existingChat) return existingChat;
   const blankChat = createBlankChat(id);
   await writeChat(blankChat);
   return blankChat;
@@ -166,53 +50,38 @@ export async function readChat(id: string): Promise<ChatData> {
 
 export async function readChatIfExists(id: string): Promise<ChatData | null> {
   const chatFile = getChatFilePath(id);
+  if (!existsSync(chatFile)) return null;
 
-  if (!existsSync(chatFile)) {
-    return null;
-  }
-
-  const chat = JSON.parse(await readFile(chatFile, 'utf8')) as Partial<ChatData>;
-
+  const raw = JSON.parse(await readFile(chatFile, 'utf8')) as Partial<ChatData>;
   return {
-    id: chat.id ?? id,
-    messages: chat.messages ?? [],
-    mode: chat.mode === 'agent' ? 'agent' : 'chat',
-    agentSdk: chat.agentSdk === 'vercel-ai' ? 'vercel-ai' : 'codex',
-    agentRuntimeState: {
-      codexThreadId: chat.agentRuntimeState?.codexThreadId ?? null,
+    id: raw.id ?? id,
+    messages: raw.messages ?? [],
+    sdkSessionId: raw.sdkSessionId,
+    workspacePages: {
+      activeSnapshotId: raw.workspacePages?.activeSnapshotId ?? null,
     },
-    builderContext: normalizeBuilderContext(chat.builderContext),
-    artifacts: normalizeArtifacts(chat.artifacts),
-    createdAt: chat.createdAt ?? Date.now(),
-    activeStreamId: chat.activeStreamId ?? null,
-    canceledAt: chat.canceledAt ?? null,
+    createdAt: raw.createdAt ?? Date.now(),
+    activeStreamId: raw.activeStreamId ?? null,
+    canceledAt: raw.canceledAt ?? null,
   };
 }
 
 export async function readAllChats(): Promise<ChatData[]> {
   const chatDir = getChatDir();
-
-  if (!existsSync(chatDir)) {
-    return [];
-  }
+  if (!existsSync(chatDir)) return [];
 
   const files = await readdir(chatDir, { withFileTypes: true });
   const chats = await Promise.all(
     files
-      .filter(file => file.isFile() && file.name.endsWith('.json'))
-      .map(async file => readChatIfExists(file.name.replace('.json', ''))),
+      .filter(f => f.isFile() && f.name.endsWith('.json'))
+      .map(f => readChatIfExists(f.name.replace('.json', ''))),
   );
-
-  return chats.filter((chat): chat is ChatData => chat !== null);
+  return chats.filter((c): c is ChatData => c !== null);
 }
 
 export async function deleteChat(id: string): Promise<boolean> {
   const chatFile = getChatFilePath(id);
-
-  if (!existsSync(chatFile)) {
-    return false;
-  }
-
+  if (!existsSync(chatFile)) return false;
   await unlink(chatFile);
   return true;
 }
@@ -230,40 +99,18 @@ function getChatFilePath(id: string): string {
   return path.join(getChatDir(), `${id}.json`);
 }
 
+async function writeChat(chat: ChatData): Promise<void> {
+  await ensureChatDir();
+  await writeFile(getChatFilePath(chat.id), JSON.stringify(chat, null, 2));
+}
+
 function createBlankChat(id: string): ChatData {
   return {
     id,
     messages: [],
-    mode: 'chat',
-    agentSdk: 'codex',
-    agentRuntimeState: {
-      codexThreadId: null,
-    },
-    builderContext: createDefaultBuilderConfig(),
-    artifacts: createEmptyArtifacts(),
+    workspacePages: { activeSnapshotId: null },
     createdAt: Date.now(),
     activeStreamId: null,
     canceledAt: null,
-  };
-}
-
-function normalizeBuilderContext(
-  builderContext: ChatBuilderContext | undefined,
-): ChatBuilderContext {
-  if (!builderContext) {
-    return createDefaultBuilderConfig();
-  }
-
-  return mergeBuilderContext(createDefaultBuilderConfig(), builderContext);
-}
-
-function normalizeArtifacts(artifacts: ChatArtifacts | undefined): ChatArtifacts {
-  if (!artifacts) {
-    return createEmptyArtifacts();
-  }
-
-  return {
-    activeArtifactId: artifacts.activeArtifactId ?? null,
-    versions: artifacts.versions ?? [],
   };
 }

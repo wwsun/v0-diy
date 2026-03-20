@@ -38,4 +38,5 @@ next-env.d.ts
 .chats
 .streams
 
-.claude
+.claude.worktrees/
+.workspaces/

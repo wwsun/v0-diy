@@ -1,38 +1,16 @@
-import type { AgentSdk, ChatMode } from '@/util/chat-schema';
-import type { AppType, BuilderBrief } from '@/util/builder-schema';
 import { useEffect, useState } from 'react';
 import { SendHorizonal, Square } from 'lucide-react';
-import ModeToggle from '../mode-toggle';
-import SdkToggle from '../sdk-toggle';
 
 export default function ChatInput({
   status,
   onSubmit,
   inputRef,
   stop,
-  mode,
-  onModeChange,
-  agentSdk,
-  onAgentSdkChange,
-  appType,
-  onAppTypeChange,
-  brief,
-  onBriefChange,
-  modeDisabled = false,
 }: {
   status: string;
   onSubmit: (text: string) => void;
   inputRef: React.RefObject<HTMLTextAreaElement>;
   stop: () => void;
-  mode: ChatMode;
-  onModeChange: (mode: ChatMode) => void;
-  agentSdk: AgentSdk;
-  onAgentSdkChange: (sdk: AgentSdk) => void;
-  appType: AppType;
-  onAppTypeChange: (appType: AppType) => void;
-  brief: BuilderBrief;
-  onBriefChange: (patch: Partial<BuilderBrief>) => void;
-  modeDisabled?: boolean;
 }) {
   const [text, setText] = useState('');
   const canSubmit = status === 'ready' && text.trim().length > 0;
@@ -68,91 +46,6 @@ export default function ChatInput({
           <Square className="mr-1 size-3.5" />
           Stop generating
         </button>
-      )}
-
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-slate-500">Response mode</span>
-        <ModeToggle
-          value={mode}
-          onChange={onModeChange}
-          disabled={status !== 'ready' || modeDisabled}
-        />
-      </div>
-
-      {mode === 'agent' && (
-        <>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-500">Agent SDK</span>
-            <SdkToggle
-              value={agentSdk}
-              onChange={onAgentSdkChange}
-              disabled={status !== 'ready' || modeDisabled}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <label className="space-y-1 text-xs text-slate-500">
-              <span>App Type</span>
-              <select
-                value={appType}
-                onChange={event =>
-                  onAppTypeChange(event.target.value as AppType)
-                }
-                disabled={status !== 'ready' || modeDisabled}
-                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
-              >
-                <option value="marketing-campaign">Marketing Campaign</option>
-                <option value="report-app">Report App</option>
-              </select>
-            </label>
-
-            <label className="space-y-1 text-xs text-slate-500">
-              <span>Style</span>
-              <input
-                value={brief.style}
-                disabled={status !== 'ready' || modeDisabled}
-                onChange={event => onBriefChange({ style: event.target.value })}
-                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
-              />
-            </label>
-
-            <label className="space-y-1 text-xs text-slate-500">
-              <span>Industry</span>
-              <input
-                value={brief.industry}
-                disabled={status !== 'ready' || modeDisabled}
-                onChange={event =>
-                  onBriefChange({ industry: event.target.value })
-                }
-                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
-              />
-            </label>
-
-            <label className="space-y-1 text-xs text-slate-500">
-              <span>Objective</span>
-              <input
-                value={brief.objective}
-                disabled={status !== 'ready' || modeDisabled}
-                onChange={event =>
-                  onBriefChange({ objective: event.target.value })
-                }
-                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
-              />
-            </label>
-
-            <label className="col-span-2 space-y-1 text-xs text-slate-500">
-              <span>Primary Color</span>
-              <input
-                value={brief.primaryColor}
-                disabled={status !== 'ready' || modeDisabled}
-                onChange={event =>
-                  onBriefChange({ primaryColor: event.target.value })
-                }
-                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
-              />
-            </label>
-          </div>
-        </>
       )}
 
       <div className="flex items-center gap-2">

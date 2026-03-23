@@ -30,12 +30,14 @@ export default function ChatComponent({
   const CHAT_MAX = 600;
   const CHAT_DEFAULT = 360;
   const [chatWidth, setChatWidth] = useState(CHAT_DEFAULT);
+  const [isDragging, setIsDragging] = useState(false);
   const chatWidthRef = useRef(CHAT_DEFAULT);
 
   const onDragHandleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     const startX = e.clientX;
     const startWidth = chatWidthRef.current;
+    setIsDragging(true);
 
     const onMouseMove = (ev: MouseEvent) => {
       const newWidth = Math.min(CHAT_MAX, Math.max(CHAT_MIN, startWidth + ev.clientX - startX));
@@ -44,16 +46,13 @@ export default function ChatComponent({
     };
 
     const onMouseUp = () => {
+      setIsDragging(false);
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
     };
 
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
   }, []);
 
   const { status, sendMessage, messages, regenerate } = useChat({
@@ -107,7 +106,7 @@ export default function ChatComponent({
   }, [messages, status]);
 
   return (
-    <div className="flex h-full min-h-0 bg-white">
+    <div className={`flex h-full min-h-0 bg-white${isDragging ? ' cursor-col-resize select-none' : ''}`}>
       {/* 左侧：对话区 */}
       <div className="flex h-full shrink-0 flex-col border-r border-zinc-200 bg-white" style={{ width: chatWidth }}>
         {/* 消息列表 */}
@@ -160,8 +159,9 @@ export default function ChatComponent({
         <div className="absolute inset-y-0 left-0 w-px bg-zinc-200 transition-colors group-hover:bg-zinc-400" />
       </div>
 
-      {/* 右侧：预览区 */}
-      <div className="h-full min-w-0 flex-1 overflow-hidden">
+      {/* 右侧：预览区，拖拽时盖透明遮罩阻止 iframe 捕获鼠标事件 */}
+      <div className="relative h-full min-w-0 flex-1 overflow-hidden">
+        {isDragging && <div className="absolute inset-0 z-10" />}
         <PreviewPanel
           chatId={chatData.id}
           snapshotId={chatData.workspacePages.activeSnapshotId}

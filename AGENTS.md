@@ -1,129 +1,170 @@
 # AGENTS.md
 
-Agent-focused instructions for this repository. Keep this file updated as code patterns evolve.
+Agent 专用指南。代码演进时请同步更新本文件。
 
-## Project overview
-- Stack: Next.js App Router + TypeScript + Tailwind + AI SDK 6 + OpenAI Codex SDK.
-- Architecture follows a 3-layer split: UI layer (`app/**`), business logic (`util/builder/**`, `util/agent-adapters/**`), persistence (`util/chat-store.ts` + `.chats/*.json`).
-- Agent runtime supports two SDK paths in Agent mode (`vercel-ai`, `codex`) through a unified `AgentAdapter` interface.
-- `ChatData` includes messages, agent settings, builder context, and artifact versions.
-- Home page (`/`) launches chats; `/chat/:id` handles conversation + artifact preview/code panel.
+## 项目概述
 
-## Technical references
-- `docs/technical-implementation.md`: primary architecture reference (pipeline, models, route responsibilities).
-- `guide/codex-sdk.md`: Codex SDK usage details and thread lifecycle guidance.
-- `guide/ai-sdk.md`: Vercel AI SDK agent patterns (`ToolLoopAgent`, UI streaming, typing).
-- If documentation and code diverge, treat current code as source of truth and update docs in the same change.
+- **定位**：AI 驱动的网页生成器，类 Vercel v0
+- **技术栈**：Next.js 15 App Router + TypeScript + Tailwind CSS + Claude Agent SDK + Vercel AI SDK 6
+- **端口**：4001（开发 & 生产）
+- **持久化**：纯文件系统，无数据库（`.workspaces/{chatId}/chat.json` + `.workspaces/{chatId}/index.html`，删除时整目录清理）
 
-## Setup commands
-- Install deps: `npm install`
-- Dev server: `npm run dev`
-- Type check (required): `npx tsc --noEmit`
-- Production build: `npm run build`
+## 技术参考
 
-Note: `npm run lint` currently uses `next lint` and may prompt interactively if ESLint config is missing.
+- `docs/technical-implementation.md`：主架构参考（完整数据流、模块详解、设计决策）
+- `CLAUDE.md`：项目级 Claude Code 配置（常用命令、目录结构速查）
+- 如文档与代码不一致，以代码为准，并在同一 PR 中更新文档
 
-## Project structure
-- `docs/technical-implementation.md`: technical implementation and architecture reference.
-- `guide/codex-sdk.md`: local reference for Codex SDK usage patterns and constraints.
-- `guide/ai-sdk.md`: local reference for Vercel AI SDK Agent patterns (`ToolLoopAgent`, UI streaming, typing).
-- `app/page.tsx`: home shell (sidebar + new chat launcher).
-- `app/chat/sidebar.tsx`: shared sidebar for home and chat pages.
-- `app/chat/chat-list-item.tsx`: sidebar chat row item with navigation/delete actions.
-- `app/chat/new-chat-launcher.tsx`: first-message submit + route jump.
-- `app/chat/mode-toggle.tsx`: chat/agent mode switch control.
-- `app/chat/sdk-toggle.tsx`: SDK switch control for agent mode (`vercel-ai` / `codex`).
-- `app/chat/[chatId]/page.tsx`: chat route page + existence checks.
-- `app/chat/[chatId]/chat.tsx`: chat UI and transport wiring.
-- `app/chat/[chatId]/chat-input.tsx`: message composer with submit/stop behavior.
-- `app/chat/[chatId]/message.tsx`: message rendering.
-- `app/chat/[chatId]/artifact-card.tsx`: artifact history item and activation action.
-- `app/chat/[chatId]/preview-panel.tsx`: mobile preview/code panel for active artifact.
-- `app/actions.ts`: server action helpers (router cache invalidation hooks).
-- `app/api/chat/route.ts`: primary chat stream endpoint (submit/regenerate).
-- `app/api/chat/[id]/stream/route.ts`: chat stream endpoint by chat id.
-- `app/api/chat/[id]/route.ts`: chat read/delete endpoint.
-- `app/api/chat/[id]/generate/route.ts`: generate pipeline endpoint with explicit builder inputs.
-- `app/api/chat/[id]/artifact/[artifactId]/route.ts`: artifact fetch/activate endpoint.
-- `app/api/chat/[id]/agent-config/route.ts`: unified mode + SDK persistence endpoint.
-- `app/api/chat/[id]/mode/route.ts`: mode-only endpoint (legacy/compat; prefer `agent-config`).
-- `util/builder-schema.ts`: builder context + campaign DSL + artifact schemas.
-- `util/builder/*.ts`: generate pipeline (`intent` -> `dsl` -> `compile/preview` -> `persist artifact`).
-- `util/chat-store.ts`: persistence helpers (`createChat`, `readChat`, `readChatIfExists`, `readAllChats`, `saveChat`, `appendMessageToChat`, `appendArtifactVersion`, `activateArtifactVersion`, `deleteChat`).
-- `util/chat-schema.ts`: shared chat/message/mode/agent types.
-- `util/chat-request.ts`: request validation + message trigger application.
-- `util/chat-message.ts`: message utilities (e.g. message ID normalization).
-- `util/agent-adapters/registry.ts`: centralized adapter selection by SDK.
-- `util/agent-adapters/*.ts`: adapter implementations for each agent SDK.
-- `util/ai/provider.ts`: model provider factory.
-- `util/ai/agent.ts`: core AI agent helpers.
+## 安装与运行
 
-## Generate pipeline guidance
-- Keep generation orchestration in `util/builder/generate-pipeline.ts`; route handlers should only parse/validate request and persist boundaries.
-- Keep intent detection centralized in `util/builder/intent-resolver.ts` (generate vs normal chat).
-- Generate DSL via schema-constrained flow (`campaignDslSchema` + `generateObject`) in `util/builder/dsl-generator.ts`.
-- Build artifact output through compiler + preview HTML (`dsl-compiler.ts`, `preview-html.ts`) and persist via artifact store helpers.
-- Preserve `sourceMessageId`, `summary`, and `activeArtifactId` consistency when creating/activating artifact versions.
-- Use `mergeBuilderContext` for partial context updates; avoid hand-merging nested brief fields in route handlers.
+```bash
+npm install
+npm run dev          # 端口 4001
+npx tsc --noEmit     # 类型检查（修改后必须运行）
+npm run build        # 生产构建
+```
 
-## SDK-specific guidance
+## 项目结构
 
-### Codex SDK (`guide/codex-sdk.md`)
-- Prefer streamed execution (`thread.runStreamed(...)`) in adapters so progress/events can be surfaced to UI.
-- Persist and reuse Codex thread identity via `chat.agentRuntimeState.codexThreadId` (`thread.started` -> save thread id).
-- Keep Codex runtime restrictions explicit unless product requirements change: read-only sandbox, no network, no approvals.
-- Keep Codex integration concerns inside `util/agent-adapters/codex-adapter.ts`; route handlers should stay SDK-agnostic.
-- If adding structured Codex responses, use schema-based output (`outputSchema`) rather than post-hoc string parsing.
+```
+v0-diy/
+├── adapters/
+│   ├── types.ts                    # AgentAdapter 接口
+│   └── workspace-adapter.ts        # 唯一 adapter 实现，调用 Claude Agent SDK
+├── stream/
+│   ├── abort-registry.ts           # 进程内取消注册表
+│   └── claude-sdk-stream.ts        # SDK 事件 → UIMessageStream 桥接
+├── util/
+│   ├── chat-schema.ts              # 核心类型（ChatData、MyUIMessage）
+│   ├── chat-store.ts               # 文件系统持久化
+│   ├── chat-message.ts             # 消息工具函数
+│   └── workspace.ts                # workspace 路径工具
+├── app/
+│   ├── api/agent/[id]/
+│   │   ├── route.ts                # GET 读取 chat 数据
+│   │   └── stream/route.ts         # POST 触发流 / DELETE 中止
+│   ├── api/workspace/[chatId]/
+│   │   └── route.ts                # GET 返回生成的 index.html
+│   └── chat/[chatId]/
+│       ├── chat.tsx                # 对话界面 + useChat
+│       ├── message.tsx             # 消息渲染
+│       ├── preview-panel.tsx       # 预览面板 + 轮询
+│       ├── chat-input.tsx          # 输入框
+│       └── page.tsx                # 路由页面
+├── components/
+│   ├── thinking-block.tsx          # 推理过程展示
+│   └── tool-cards/                 # 工具调用卡片（FileChangeCard、ToolCallCard）
+└── agent/
+    ├── CLAUDE.md                   # Agent 运行时角色定义
+    └── .claude/skills/html-page/   # 生成页面技术规范技能
+```
 
-### Vercel AI SDK (`guide/ai-sdk.md`)
-- Define reusable agent behavior in `util/ai/agent.ts` with `ToolLoopAgent` (model, instructions, tools, stop conditions).
-- Keep loop control explicit (`stopWhen`, e.g. `stepCountIs(...)`) to avoid unbounded tool loops.
-- Define tool schemas with `tool(...)` + `zod` for type-safe inputs/outputs.
-- In route/adapters, prefer `createAgentUIStreamResponse(...)` for chat UI streaming flows.
-- Maintain end-to-end message typing with `InferAgentUIMessage` on the server side and typed `useChat` usage on clients.
-- If adding telemetry/cost tracking, use `onStepFinish` hooks rather than ad-hoc logging in route handlers.
+## 核心数据流
 
-## Do
-- Keep diffs small and focused; preserve existing behavior unless asked.
-- Reuse shared components (`Sidebar`, `ChatListItem`, toggles) before creating new ones.
-- Use `readChatIfExists` for existence checks; use `readChat` only when creation is intended.
-- Prefer `PATCH /api/chat/[id]/agent-config` when persisting mode and/or SDK from UI.
-- Keep adapter routing centralized in `util/agent-adapters/registry.ts`.
-- Keep builder updates centralized via `builderContext` + `mergeBuilderContext`.
-- Use artifact helpers in `util/chat-store.ts` for version append/activation.
-- Keep UI compact and full-screen layout compatible (current sidebar width is `220px`).
-- Run `npx tsc --noEmit` after changes.
+```
+POST /api/agent/[id]/stream
+  └─ workspace-adapter.runAsUIMessageStream()
+       ├─ Claude Agent SDK query()
+       │    cwd = agent/
+       │    tools = [Write, Read, Edit, Skill, mcp__agent__notify_preview]
+       │    maxTurns = 20, permissionMode = acceptEdits
+       │
+       ├─ Claude 写 .workspaces/{chatId}/index.html
+       ├─ Claude 调用 notify_preview → snapshotId 写入 .workspaces/{chatId}/chat.json
+       └─ processClaudeStreamEvents() → UIMessageStream → useChat
+```
 
-## Don’t
-- Don’t commit secrets or modify `.env.local` values in repo.
-- Don’t edit generated/runtime artifacts (`.next/`, `.chats/`, `tsconfig.tsbuildinfo`, `node_modules/`).
-- Don’t introduce heavy dependencies without explicit approval.
-- Don’t bypass adapter abstraction by hardcoding SDK-specific logic directly in route handlers.
-- Don’t write artifact/version state directly in UI components; persist through API + store helpers.
-- Don’t rewrite unrelated files while fixing targeted tasks.
+预览刷新：`PreviewPanel` 每 2s 轮询 `GET /api/agent/{chatId}`，检测 `activeSnapshotId` 变化后更新 iframe src。
 
-## Validation checklist
-- For UI changes: manual smoke test in browser
-  - Home shows sidebar.
-  - Home send creates/opens `/chat/:id`.
-  - Chat sidebar switch and delete work.
-  - Mode toggle and SDK toggle persist correctly after refresh/navigation.
-- For chat/data changes:
-  - Stream still works via `/api/chat` and `/api/chat/[id]/stream`.
-  - `PATCH /api/chat/[id]/agent-config` correctly updates `mode` and `agentSdk`.
-  - `PATCH /api/chat/[id]/agent-config` correctly persists `builderContext` updates.
-  - Agent generation creates a new artifact version and updates active preview.
-  - `GET /api/chat/[id]/artifact/[artifactId]` returns artifact payload.
-  - `POST /api/chat/[id]/artifact/[artifactId]` switches active artifact version.
-  - `POST /api/chat/[id]/generate` follows intent/DSL/compiler/persist flow without breaking stream UX.
-  - In `agent + codex` mode, consecutive turns reuse the same `codexThreadId` when available.
-  - In `agent + vercel-ai` mode, responses still stream through `createAgentUIStreamResponse`.
-  - Deleting active chat redirects to `/`.
+## 关键类型
 
-## PR / commit guidance
-- Use Conventional Commits (`feat:`, `fix:`, `refactor:` etc.).
-- Include: scope, behavior change, verification commands, and screenshots for UI updates.
+```typescript
+// util/chat-schema.ts
+type ChatData = {
+  id: string;
+  messages: MyUIMessage[];
+  sdkSessionId?: string;           // Claude SDK session，用于断点续传
+  workspacePages: {
+    activeSnapshotId: string | null; // notify_preview 写入的时间戳
+  };
+  activeStreamId: string | null;
+  canceledAt: number | null;
+  createdAt: number;
+};
 
-## Safety boundaries
-- Ask first before: deleting many files, changing env contract, or adding dependencies.
-- If new env vars are required, update `.env.local.example` in the same change.
+// adapters/types.ts
+interface AgentAdapter {
+  runAsUIMessageStream(context: AdapterContext): Promise<Response>;
+}
+```
+
+## 开发规范
+
+### 必须遵守
+
+- 修改后运行 `npx tsc --noEmit` 确保无类型错误
+- 使用 `readChatIfExists` 做存在性检查；`readChat` 仅在需要自动创建时使用
+- route handler 保持轻薄，业务逻辑放在 adapter 层
+- 新增环境变量时同步更新 `.env.local.example`
+- Commit 使用 Conventional Commits（`feat:` `fix:` `refactor:` 等）
+
+### 禁止
+
+- 不得提交 `.env.local` 中的密钥
+- 不得修改运行时产物（`.chats/` `.workspaces/` `.next/` `tsconfig.tsbuildinfo`）
+- 不得绕过 adapter 抽象，在 route handler 中直接写 SDK 调用逻辑
+- 不得引入重型依赖，未经确认不得修改 `package.json`
+
+## SDK 使用指南
+
+### Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`)
+
+- 通过 `query()` 调用，返回 `AsyncIterable<unknown>` 事件流
+- `settingSources: ['project']` 让 Agent 自动加载 `agent/CLAUDE.md` 和 skills
+- `resume: sdkSessionId` 在同一对话的后续轮次复用 session（避免重复传历史消息）
+- 自定义 MCP 工具通过 `createSdkMcpServer` + `tool()` 注册
+- 完整事件映射见 `stream/claude-sdk-stream.ts` 注释
+
+### Vercel AI SDK 6 (`ai` + `@ai-sdk/react`)
+
+- 前端用 `useChat`（`@ai-sdk/react`），配合 `DefaultChatTransport` 指向 `/api/agent/{id}/stream`
+- 后端用 `createUIMessageStream` + `createUIMessageStreamResponse` 包装响应
+- 消息 part 类型：`text`、`reasoning`（thinking）、`dynamic-tool`（工具调用）
+
+## 生成页面规范
+
+Agent 生成的 `index.html` 必须遵循 `agent/.claude/skills/html-page/SKILL.md`：
+
+- React 18 UMD via unpkg.com（全局变量 `React`、`ReactDOM`）
+- Tailwind CSS via CDN（`cdn.tailwindcss.com`）
+- Babel Standalone via unpkg.com（`type="text/babel"` 脚本）
+- **禁止** ESM `import`，所有库通过全局变量访问
+- Hooks 解构：`const { useState, useEffect } = React;`
+
+## 验证清单
+
+### UI 变更
+
+- [ ] 首页侧边栏正常显示历史对话
+- [ ] 发送消息后跳转到 `/chat/:id`
+- [ ] 对话输入和停止按钮正常工作
+- [ ] PreviewPanel 在生成完成后显示页面
+- [ ] 桌面/手机预览切换正常
+
+### 数据 / 流变更
+
+- [ ] `POST /api/agent/[id]/stream` 流式响应正常
+- [ ] `DELETE /api/agent/[id]/stream` 取消流正常
+- [ ] `GET /api/agent/[id]` 返回最新 chat 数据
+- [ ] `notify_preview` 调用后预览面板刷新
+- [ ] 同一对话多轮对话时 `sdkSessionId` 正确复用
+- [ ] 删除对话后重定向到 `/`
+
+## 安全边界
+
+遇到以下情况须先确认再操作：
+
+- 删除多个文件
+- 修改环境变量合约
+- 添加新依赖包
+- 修改 `.gitignore` 或 CI 配置

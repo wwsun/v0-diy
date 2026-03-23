@@ -1,8 +1,13 @@
 import { generateId } from 'ai';
-import { existsSync, mkdirSync } from 'fs';
-import { readdir, readFile, unlink, writeFile } from 'fs/promises';
-import path from 'path';
+import { existsSync, rmSync } from 'fs';
+import { readdir, readFile, writeFile } from 'fs/promises';
 import type { ChatData, MyUIMessage, WorkspacePagesMeta } from './chat-schema';
+import {
+  ensureWorkspaceDir,
+  getChatWorkspaceDir,
+  getWorkspaceFilePath,
+  getWorkspacesRoot,
+} from './workspace';
 
 export async function createChat(): Promise<string> {
   const id = generateId();
@@ -67,14 +72,14 @@ export async function readChatIfExists(id: string): Promise<ChatData | null> {
 }
 
 export async function readAllChats(): Promise<ChatData[]> {
-  const chatDir = getChatDir();
-  if (!existsSync(chatDir)) return [];
+  const workspacesRoot = getWorkspacesRoot();
+  if (!existsSync(workspacesRoot)) return [];
 
-  const files = await readdir(chatDir, { withFileTypes: true });
+  const entries = await readdir(workspacesRoot, { withFileTypes: true });
   const chats = await Promise.all(
-    files
-      .filter(f => f.isFile() && f.name.endsWith('.json'))
-      .map(f => readChatIfExists(f.name.replace('.json', ''))),
+    entries
+      .filter(e => e.isDirectory())
+      .map(e => readChatIfExists(e.name)),
   );
   return chats.filter((c): c is ChatData => c !== null);
 }
@@ -82,25 +87,16 @@ export async function readAllChats(): Promise<ChatData[]> {
 export async function deleteChat(id: string): Promise<boolean> {
   const chatFile = getChatFilePath(id);
   if (!existsSync(chatFile)) return false;
-  await unlink(chatFile);
+  rmSync(getChatWorkspaceDir(id), { recursive: true, force: true });
   return true;
 }
 
-function getChatDir(): string {
-  return path.join(process.cwd(), '.chats');
-}
-
-async function ensureChatDir(): Promise<void> {
-  const chatDir = getChatDir();
-  if (!existsSync(chatDir)) mkdirSync(chatDir, { recursive: true });
-}
-
 function getChatFilePath(id: string): string {
-  return path.join(getChatDir(), `${id}.json`);
+  return getWorkspaceFilePath(id, 'chat.json');
 }
 
 async function writeChat(chat: ChatData): Promise<void> {
-  await ensureChatDir();
+  ensureWorkspaceDir(chat.id);
   await writeFile(getChatFilePath(chat.id), JSON.stringify(chat, null, 2));
 }
 

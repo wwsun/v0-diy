@@ -35,10 +35,12 @@ yarn-error.log*
 next-env.d.ts
 
 # persistence
-.chats
 .streams
 
 /.claude/
 !agent/.claude/
 .workspaces/
 .worktrees/
+
+.chats/
+.workspaces/

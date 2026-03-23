@@ -4,7 +4,7 @@ import { invalidateRouterCache } from '@/app/actions';
 import type { MyUIMessage } from '@/util/chat-schema';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { Bot, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import ChatInput from './chat-input';
 import Message from './message';
@@ -76,36 +76,18 @@ export default function ChatComponent({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, status]);
 
-  const isGenerating = status === 'streaming' || status === 'submitted';
-
   return (
     <div className="flex h-full min-h-0 bg-white">
-      <div className="flex min-h-0 flex-1 flex-col">
-        {/* Header */}
-        <div className="glass flex items-center justify-between border-b border-zinc-100 px-4 py-3 sticky top-0 z-10">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-zinc-900">
-            <Bot className="size-4 text-zinc-500" />
-            对话
-          </h2>
-          {isGenerating && (
-            <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-              <span className="flex items-center gap-0.5">
-                <span className="inline-block size-1.5 rounded-full bg-emerald-500 animate-bounce-dot" style={{ animationDelay: '0ms' }} />
-                <span className="inline-block size-1.5 rounded-full bg-emerald-500 animate-bounce-dot" style={{ animationDelay: '160ms' }} />
-                <span className="inline-block size-1.5 rounded-full bg-emerald-500 animate-bounce-dot" style={{ animationDelay: '320ms' }} />
-              </span>
-              生成中
-            </span>
-          )}
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      {/* 左侧：对话区 */}
+      <div className="flex h-full w-[360px] shrink-0 flex-col border-r border-zinc-200 bg-white">
+        {/* 消息列表 */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 space-y-3">
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-zinc-200 px-6 py-12 text-center">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-zinc-100">
-                <Sparkles className="size-5 text-zinc-400" />
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+              <div className="flex size-10 items-center justify-center rounded-2xl bg-zinc-100">
+                <Sparkles className="size-4 text-zinc-400" />
               </div>
-              <p className="text-sm text-zinc-500">在下方输入，开始创建你的网页</p>
+              <p className="text-sm text-zinc-400">在下方输入，开始创建你的网页</p>
             </div>
           ) : (
             messages.map(message => (
@@ -121,7 +103,8 @@ export default function ChatComponent({
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="sticky bottom-0 border-t border-zinc-100 bg-white/90 px-3 py-3 backdrop-blur-sm">
+        {/* 输入区 */}
+        <div className="shrink-0 border-t border-zinc-100 bg-white px-3 py-3">
           <ChatInput
             status={status}
             stop={() => {
@@ -139,11 +122,14 @@ export default function ChatComponent({
         </div>
       </div>
 
-      <PreviewPanel
-        chatId={chatData.id}
-        snapshotId={chatData.workspacePages.activeSnapshotId}
-        status={status}
-      />
+      {/* 右侧：预览区 */}
+      <div className="h-full min-w-0 flex-1 overflow-hidden">
+        <PreviewPanel
+          chatId={chatData.id}
+          snapshotId={chatData.workspacePages.activeSnapshotId}
+          status={status}
+        />
+      </div>
     </div>
   );
 }

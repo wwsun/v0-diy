@@ -242,15 +242,3 @@ export async function processClaudeStreamEvents(
   }
 }
 
-/**
- * 构造 Claude Agent SDK query() 所需的 prompt AsyncIterable。
- */
-export async function* makePromptGenerator(content: string) {
-  yield {
-    type: 'user' as const,
-    message: {
-      role: 'user' as const,
-      content: content || '你好',
-    },
-  };
-}

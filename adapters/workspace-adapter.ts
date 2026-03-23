@@ -1,6 +1,5 @@
 import 'server-only';
 
-import path from 'path';
 import {
   query,
   tool,
@@ -17,7 +16,7 @@ import {
   getChatWorkspaceDir,
   ensureWorkspaceDir,
 } from '@/util/workspace';
-import { processClaudeStreamEvents, makePromptGenerator } from '@/stream/claude-sdk-stream';
+import { processClaudeStreamEvents } from '@/stream/claude-sdk-stream';
 import { registerAbort, unregisterAbort } from '@/stream/abort-registry';
 import type { AgentAdapter } from './types';
 import type { ChatData } from '@/util/chat-schema';
@@ -34,14 +33,14 @@ function buildSystemPrompt(chat: ChatData): string {
     '',
     '## 技术规范',
     '',
-    '生成的 index.html 必须是完整的单文件，使用以下技术栈：',
+    '生成的 index.html 必须是完整的单文件，使用以下技术栈（**必须严格遵守，不能用 ESM import**）：',
     '',
-    '- **React 18**：通过 `https://esm.sh/react@18` 导入',
-    '- **ReactDOM**：通过 `https://esm.sh/react-dom@18/client` 导入',
-    '- **Tailwind CSS**：通过 `<script src="https://cdn.tailwindcss.com"></script>` 加载',
-    '- **Lucide React**：通过 `https://esm.sh/lucide-react@latest` 导入所需图标',
+    '- **React 18 + ReactDOM**：通过 unpkg.com UMD 脚本加载，使用全局变量 `React`、`ReactDOM`',
+    '- **Tailwind CSS**：通过 CDN 脚本加载',
+    '- **Babel Standalone**：通过 unpkg.com 脚本加载，用于支持 JSX 语法',
+    '- **Lucide 图标**（可选）：通过 `unpkg.com/lucide@latest` UMD 加载，使用全局变量 `lucide`',
     '',
-    '### 文件模板',
+    '### 文件模板（必须使用此结构）',
     '```html',
     '<!DOCTYPE html>',
     '<html lang="zh-CN">',
@@ -49,43 +48,35 @@ function buildSystemPrompt(chat: ChatData): string {
     '  <meta charset="UTF-8" />',
     '  <meta name="viewport" content="width=device-width, initial-scale=1.0" />',
     '  <script src="https://cdn.tailwindcss.com"></script>',
+    '  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>',
+    '  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>',
+    '  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>',
     '  <title>My App</title>',
     '</head>',
     '<body>',
     '  <div id="root"></div>',
-    '  <script type="module">',
-    "    import React, { useState, useEffect } from 'https://esm.sh/react@18';",
-    "    import { createRoot } from 'https://esm.sh/react-dom@18/client';",
-    "    import { Sun, Moon } from 'https://esm.sh/lucide-react@latest';",
+    '  <script type="text/babel">',
+    '    const { useState, useEffect, useRef } = React;',
     '',
     '    function App() {',
     '      return (',
-    '        <div className="min-h-screen bg-white">',
+    '        <div className="min-h-screen bg-white p-8">',
     '          {/* 页面内容 */}',
     '        </div>',
     '      );',
     '    }',
     '',
-    "    createRoot(document.getElementById('root')).render(",
-    '      React.createElement(App)',
-    '    );',
+    "    ReactDOM.createRoot(document.getElementById('root')).render(<App />);",
     '  </script>',
     '</body>',
     '</html>',
     '```',
     '',
-    '**重要**：`<script type="module">` 中的 JSX 语法需要 Babel 转换才能在浏览器直接运行。',
-    '请不要使用 JSX 语法，而是使用 `React.createElement()` 或使用 `https://esm.sh/react@18/jsx-runtime` 配合 `@babel/standalone`。',
-    '',
-    '更推荐的方式是使用 Babel standalone 来支持 JSX：',
-    '```html',
-    '<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>',
-    '<script type="text/babel" data-type="module">',
-    "  import React, { useState } from 'https://esm.sh/react@18';",
-    "  import { createRoot } from 'https://esm.sh/react-dom@18/client';",
-    '  // ... JSX code here',
-    '</script>',
-    '```',
+    '**关键规则**：',
+    '- **禁止**使用 `import` 语句，所有库通过全局变量访问',
+    '- React hooks 通过解构获取：`const { useState } = React;`',
+    '- 脚本类型必须是 `type="text/babel"`（不加 `data-type="module"`）',
+    '- Lucide 图标用法：`const { Sun, Moon } = lucide;`（需先加载 lucide UMD 脚本）',
     '',
     '## 工作流程',
     '',
@@ -114,8 +105,6 @@ export const workspaceAdapter: AgentAdapter = {
           .map((p) => p.text)
           .join('\n')
       : '';
-
-    const sourceMessageId = lastUserMessage?.id ?? 'unknown';
 
     ensureWorkspaceDir(chat.id);
 
@@ -168,7 +157,7 @@ export const workspaceAdapter: AgentAdapter = {
           await processClaudeStreamEvents(
             writer,
             query({
-              prompt: makePromptGenerator(lastUserContent) as unknown as AsyncIterable<never>,
+              prompt: lastUserContent || '你好',
               options: {
                 abortController,
                 ...(sdkSessionId ? { resume: sdkSessionId } : {}),

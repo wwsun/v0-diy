@@ -5,7 +5,7 @@ import type { MyUIMessage } from '@/util/chat-schema';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { Sparkles } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ChatInput from './chat-input';
 import Message from './message';
 import PreviewPanel from './preview-panel';
@@ -25,6 +25,40 @@ export default function ChatComponent({
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const CHAT_MIN = 260;
+  const CHAT_MAX = 600;
+  const CHAT_DEFAULT = 360;
+  const [chatWidth, setChatWidth] = useState(CHAT_DEFAULT);
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(CHAT_DEFAULT);
+
+  const onDragHandleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    startXRef.current = e.clientX;
+    startWidthRef.current = chatWidth;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      const delta = ev.clientX - startXRef.current;
+      setChatWidth(Math.min(CHAT_MAX, Math.max(CHAT_MIN, startWidthRef.current + delta)));
+    };
+
+    const onMouseUp = () => {
+      isDraggingRef.current = false;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [chatWidth]);
 
   const { status, sendMessage, messages, regenerate } = useChat({
     id: chatData.id,
@@ -79,7 +113,7 @@ export default function ChatComponent({
   return (
     <div className="flex h-full min-h-0 bg-white">
       {/* 左侧：对话区 */}
-      <div className="flex h-full w-[360px] shrink-0 flex-col border-r border-zinc-200 bg-white">
+      <div className="flex h-full shrink-0 flex-col border-r border-zinc-200 bg-white" style={{ width: chatWidth }}>
         {/* 消息列表 */}
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 space-y-3">
           {messages.length === 0 ? (
@@ -120,6 +154,14 @@ export default function ChatComponent({
             inputRef={inputRef}
           />
         </div>
+      </div>
+
+      {/* 拖拽调宽 handle */}
+      <div
+        className="group relative w-1 shrink-0 cursor-col-resize"
+        onMouseDown={onDragHandleMouseDown}
+      >
+        <div className="absolute inset-y-0 left-0 w-px bg-zinc-200 transition-colors group-hover:bg-zinc-400" />
       </div>
 
       {/* 右侧：预览区 */}

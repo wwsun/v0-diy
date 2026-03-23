@@ -27,8 +27,8 @@ export default function ChatComponent({
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const CHAT_MIN = 260;
-  const CHAT_MAX = 600;
-  const CHAT_DEFAULT = 360;
+  const CHAT_MAX = 680;
+  const CHAT_DEFAULT = 440;
   const [chatWidth, setChatWidth] = useState(CHAT_DEFAULT);
   const [isDragging, setIsDragging] = useState(false);
   const chatWidthRef = useRef(CHAT_DEFAULT);

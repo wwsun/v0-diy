@@ -73,28 +73,28 @@ export default function ChatListItem({
   return (
     <li className="group">
       <div
-        className={`flex items-center gap-1 rounded-xl border text-xs transition ${
+        className={`flex items-center gap-1 rounded-lg text-xs transition-colors ${
           isActive
-            ? 'border-zinc-200 bg-white shadow-soft-sm text-zinc-900'
-            : 'border-transparent text-zinc-600 hover:border-zinc-100 hover:bg-white/80'
+            ? 'bg-white/[0.08] text-white'
+            : 'text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-200'
         }`}
       >
-        <Link href={`/chat/${chatId}`} className="min-w-0 flex-1 px-3 py-2.5">
-          <div className="flex items-center gap-2 truncate font-medium">
-            <MessageSquare className="size-3.5 shrink-0 text-zinc-400" />
-            <span className="truncate" suppressHydrationWarning>
+        <Link href={`/chat/${chatId}`} className="min-w-0 flex-1 px-3 py-2">
+          <div className="flex items-center gap-2 truncate">
+            <MessageSquare className="size-3.5 shrink-0 opacity-50" />
+            <span className="truncate font-medium" suppressHydrationWarning>
               {formatChatLabel(createdAt)}
             </span>
           </div>
         </Link>
 
         {isConfirmingDelete ? (
-          <div className="mr-1 flex items-center gap-1">
+          <div className="mr-1 flex items-center gap-0.5">
             <button
               type="button"
               aria-label="Confirm delete chat"
               disabled={isDeleting}
-              className="inline-flex rounded-lg p-1 text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex rounded-md p-1 text-rose-400 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40"
               onClick={async event => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -108,7 +108,7 @@ export default function ChatListItem({
               type="button"
               aria-label="Cancel delete chat"
               disabled={isDeleting}
-              className="inline-flex rounded-lg p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex rounded-md p-1 text-zinc-500 transition hover:bg-white/[0.05] hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-40"
               onClick={event => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -123,7 +123,7 @@ export default function ChatListItem({
             type="button"
             aria-label="Delete chat"
             disabled={isDeleting}
-            className={`mr-1 inline-flex rounded-lg p-1 text-zinc-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40 ${
+            className={`mr-1 inline-flex rounded-md p-1 text-zinc-500 transition hover:bg-rose-500/10 hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-40 ${
               isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
             }`}
             onClick={event => {

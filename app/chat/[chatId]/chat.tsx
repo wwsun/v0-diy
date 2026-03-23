@@ -30,24 +30,20 @@ export default function ChatComponent({
   const CHAT_MAX = 600;
   const CHAT_DEFAULT = 360;
   const [chatWidth, setChatWidth] = useState(CHAT_DEFAULT);
-  const isDraggingRef = useRef(false);
-  const startXRef = useRef(0);
-  const startWidthRef = useRef(CHAT_DEFAULT);
+  const chatWidthRef = useRef(CHAT_DEFAULT);
 
   const onDragHandleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    isDraggingRef.current = true;
-    startXRef.current = e.clientX;
-    startWidthRef.current = chatWidth;
+    const startX = e.clientX;
+    const startWidth = chatWidthRef.current;
 
     const onMouseMove = (ev: MouseEvent) => {
-      if (!isDraggingRef.current) return;
-      const delta = ev.clientX - startXRef.current;
-      setChatWidth(Math.min(CHAT_MAX, Math.max(CHAT_MIN, startWidthRef.current + delta)));
+      const newWidth = Math.min(CHAT_MAX, Math.max(CHAT_MIN, startWidth + ev.clientX - startX));
+      chatWidthRef.current = newWidth;
+      setChatWidth(newWidth);
     };
 
     const onMouseUp = () => {
-      isDraggingRef.current = false;
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
       document.body.style.cursor = '';
@@ -58,7 +54,7 @@ export default function ChatComponent({
     document.addEventListener('mouseup', onMouseUp);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-  }, [chatWidth]);
+  }, []);
 
   const { status, sendMessage, messages, regenerate } = useChat({
     id: chatData.id,

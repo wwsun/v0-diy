@@ -23,8 +23,8 @@ export default async function Page(props: {
     <main className="grid h-screen w-screen grid-cols-[240px_1fr] bg-white">
       <Sidebar activeChatId={chatId} />
 
-      <section className="min-h-0">
-        <Chat chatData={chatData} resume={chatData.activeStreamId !== null} />
+      <section className="min-h-0 h-full overflow-hidden">
+        <Chat chatData={chatData} isNewChat={isNewRoute} resume={false} />
       </section>
     </main>
   );

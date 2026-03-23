@@ -17,10 +17,8 @@ export default function NewChatLauncher() {
   const router = useRouter();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [chatId] = useState(() => generateId());
-  const [firstMessageId] = useState(() => generateId());
-  const canSubmit = !isSubmitting && text.trim().length > 0;
+  const canSubmit = text.trim().length > 0;
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -34,65 +32,11 @@ export default function NewChatLauncher() {
     textarea.style.height = `${Math.min(textarea.scrollHeight, 140)}px`;
   }, [text]);
 
-  const consumeResponseStream = async (response: Response) => {
-    if (!response.body) {
-      await response.text();
-      return;
-    }
-
-    const reader = response.body.getReader();
-
-    try {
-      while (true) {
-        const { done } = await reader.read();
-        if (done) {
-          break;
-        }
-      }
-    } finally {
-      reader.releaseLock();
-    }
-  };
-
-  const submit = async () => {
-    if (!canSubmit) {
-      return;
-    }
-
-    const userText = text;
-    setIsSubmitting(true);
-
-    try {
-      const response = await fetch(`/api/agent/${chatId}/stream`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          trigger: 'submit-message',
-          id: chatId,
-          message: {
-            id: firstMessageId,
-            role: 'user',
-            parts: [{ type: 'text', text: userText }],
-            metadata: { createdAt: Date.now() },
-          },
-          messageId: undefined,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to start a new chat');
-      }
-
-      await consumeResponseStream(response);
-
-      router.push(`/chat/${chatId}?new=1`);
-    } catch (error) {
-      console.error(error);
-      window.alert('Failed to start a new chat. Please try again.');
-      setIsSubmitting(false);
-    }
+  const submit = () => {
+    if (!canSubmit) return;
+    // 存储初始消息文本，Chat 组件挂载时读取并发送
+    sessionStorage.setItem(`pending-${chatId}`, text.trim());
+    router.push(`/chat/${chatId}?new=1`);
   };
 
   return (
@@ -124,7 +68,7 @@ export default function NewChatLauncher() {
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              void submit();
+              submit();
             }}
           >
             <div className="rounded-3xl border border-zinc-200 bg-white shadow-soft-2xl ring-1 ring-zinc-950/5">
@@ -132,30 +76,27 @@ export default function NewChatLauncher() {
                 ref={inputRef}
                 rows={3}
                 value={text}
-                disabled={isSubmitting}
                 placeholder="例如：创建一个简洁的产品落地页..."
-                className="max-h-[140px] min-h-[80px] w-full resize-none rounded-t-3xl bg-transparent px-5 pt-4 pb-3 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="max-h-[140px] min-h-[80px] w-full resize-none rounded-t-3xl bg-transparent px-5 pt-4 pb-3 text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
                 onChange={(event) => setText(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
                     event.preventDefault();
-                    void submit();
+                    submit();
                   }
                 }}
               />
 
               {/* 底部工具栏 */}
               <div className="flex items-center justify-between border-t border-zinc-100 px-4 py-3">
-                <span className="text-xs text-zinc-400">
-                  {isSubmitting ? '正在启动...' : '⌘↩ 发送'}
-                </span>
+                <span className="text-xs text-zinc-400">⌘↩ 发送</span>
                 <button
                   type="submit"
                   disabled={!canSubmit}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-300"
                 >
                   <SendHorizonal className="size-3.5" />
-                  {isSubmitting ? '生成中...' : '生成'}
+                  生成
                 </button>
               </div>
             </div>
@@ -167,12 +108,11 @@ export default function NewChatLauncher() {
               <button
                 key={label}
                 type="button"
-                disabled={isSubmitting}
                 onClick={() => {
                   setText(prompt);
                   requestAnimationFrame(() => inputRef.current?.focus());
                 }}
-                className="rounded-full border border-zinc-200 bg-white px-3.5 py-1.5 text-xs font-medium text-zinc-600 shadow-soft-sm transition hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900 disabled:opacity-50"
+                className="rounded-full border border-zinc-200 bg-white px-3.5 py-1.5 text-xs font-medium text-zinc-600 shadow-soft-sm transition hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900"
               >
                 {label}
               </button>

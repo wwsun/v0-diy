@@ -63,6 +63,15 @@ export default function ChatComponent({
     inputRef.current?.focus();
   }, []);
 
+  // 新对话：从 sessionStorage 读取待发送的消息文本并自动提交
+  useEffect(() => {
+    if (!isNewChat) return;
+    const pending = sessionStorage.getItem(`pending-${chatData.id}`);
+    if (!pending) return;
+    sessionStorage.removeItem(`pending-${chatData.id}`);
+    sendMessage({ text: pending, metadata: { createdAt: Date.now() } });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, status]);
@@ -104,7 +113,6 @@ export default function ChatComponent({
                 key={message.id}
                 message={message}
                 regenerate={regenerate}
-                sendMessage={sendMessage}
                 status={status}
               />
             ))
